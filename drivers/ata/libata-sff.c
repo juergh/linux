@@ -715,7 +715,7 @@ static void ata_pio_sector(struct ata_queued_cmd *qc)
 
 	DPRINTK("data %s\n", qc->tf.flags & ATA_TFLAG_WRITE ? "write" : "read");
 
-	if (PageHighMem(page)) {
+	if (PageHighMem(page) || xpfo_page_is_unmapped(page)) {
 		unsigned long flags;
 
 		/* FIXME: use a bounce buffer */
@@ -860,7 +860,7 @@ next_sg:
 
 	DPRINTK("data %s\n", qc->tf.flags & ATA_TFLAG_WRITE ? "write" : "read");
 
-	if (PageHighMem(page)) {
+	if (PageHighMem(page) || xpfo_page_is_unmapped(page)) {
 		unsigned long flags;
 
 		/* FIXME: use bounce buffer */
