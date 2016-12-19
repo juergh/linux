@@ -8,3 +8,5 @@ obj-$(CONFIG_NUMA)		+= numa.o
 
 obj-$(CONFIG_KASAN)		+= kasan_init.o
 KASAN_SANITIZE_kasan_init.o	:= n
+
+obj-$(CONFIG_XPFO)		+= xpfo.o
