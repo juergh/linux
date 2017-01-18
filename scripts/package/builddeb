@@ -51,7 +51,7 @@ set_debarch() {
 		debarch=hppa ;;
 	mips*)
 		debarch=mips$(grep -q CPU_LITTLE_ENDIAN=y $KCONFIG_CONFIG && echo el || true) ;;
-	arm64)
+	arm64|aarch64)
 		debarch=arm64 ;;
 	arm*)
 		if grep -q CONFIG_AEABI=y $KCONFIG_CONFIG; then
@@ -367,7 +367,7 @@ Description: Linux kernel firmware, version $version
  This package contains firmware from the Linux kernel, version $version.
 EOF
 
-	create_package "$fwpackagename" "$fwdir"
+#	create_package "$fwpackagename" "$fwdir"
 fi
 
 cat <<EOF >> debian/control
@@ -381,10 +381,10 @@ Description: Linux support headers for userspace development
  are used by the installed headers for GNU glibc and other system libraries.
 EOF
 
-if [ "$ARCH" != "um" ]; then
-	create_package "$kernel_headers_packagename" "$kernel_headers_dir"
-	create_package "$libc_headers_packagename" "$libc_headers_dir"
-fi
+#if [ "$ARCH" != "um" ]; then
+#	create_package "$kernel_headers_packagename" "$kernel_headers_dir"
+#	create_package "$libc_headers_packagename" "$libc_headers_dir"
+#fi
 
 create_package "$packagename" "$tmpdir"
 
@@ -411,7 +411,7 @@ Description: Linux kernel debugging symbols for $version
  all the necessary debug symbols for the kernel and its modules.
 EOF
 
-	create_package "$dbg_packagename" "$dbg_dir"
+#	create_package "$dbg_packagename" "$dbg_dir"
 fi
 
 if [ "x$1" = "xdeb-pkg" ]
