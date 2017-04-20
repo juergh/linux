@@ -122,6 +122,8 @@ void split_pud(pud_t *old_pud, pmd_t *pmd)
 	} while (pmd++, i++, i < PTRS_PER_PMD);
 }
 
+
+#ifdef CONFIG_XPFO
 static void alloc_init_pmd(struct mm_struct *mm, pud_t *pud,
 				  unsigned long addr, unsigned long end,
 				  phys_addr_t phys, pgprot_t prot,
@@ -150,6 +152,69 @@ static void alloc_init_pmd(struct mm_struct *mm, pud_t *pud,
 	pmd = pmd_offset(pud, addr);
 	do {
 		next = pmd_addr_end(addr, end);
+
+		alloc_init_pte(pmd, addr, next, __phys_to_pfn(phys),
+			       prot, alloc);
+
+		phys += next - addr;
+	} while (pmd++, addr = next, addr != end);
+}
+
+static void alloc_init_pud(struct mm_struct *mm, pgd_t *pgd,
+				  unsigned long addr, unsigned long end,
+				  phys_addr_t phys, pgprot_t prot,
+				  void *(*alloc)(unsigned long size))
+{
+	pud_t *pud;
+	unsigned long next;
+
+	if (pgd_none(*pgd)) {
+		pud = alloc(PTRS_PER_PUD * sizeof(pud_t));
+		pgd_populate(mm, pgd, pud);
+	}
+	BUG_ON(pgd_bad(*pgd));
+
+	pud = pud_offset(pgd, addr);
+	do {
+		next = pud_addr_end(addr, end);
+
+		alloc_init_pmd(mm, pud, addr, next, phys, prot, alloc);
+
+		phys += next - addr;
+	} while (pud++, addr = next, addr != end);
+	
+	
+}
+#else /* CONFIG_XPFO */
+static void alloc_init_pmd(struct mm_struct *mm, pud_t *pud,
+				  unsigned long addr, unsigned long end,
+				  phys_addr_t phys, pgprot_t prot,
+				  void *(*alloc)(unsigned long size))
+{
+	pmd_t *pmd;
+	unsigned long next;
+
+	/*
+	 * Check for initial section mappings in the pgd/pud and remove them.
+	 */
+	if (pud_none(*pud) || pud_sect(*pud)) {
+		pmd = alloc(PTRS_PER_PMD * sizeof(pmd_t));
+		if (pud_sect(*pud)) {
+			/*
+			 * need to have the 1G of mappings continue to be
+			 * present
+			 */
+			split_pud(pud, pmd);
+		}
+		pud_populate(mm, pud, pmd);
+		flush_tlb_all();
+	}
+	BUG_ON(pud_bad(*pud));
+
+	pmd = pmd_offset(pud, addr);
+	do {
+		next = pmd_addr_end(addr, end);
+
 		/* try section mapping first */
 		if (((addr | next | phys) & ~SECTION_MASK) == 0) {
 			pmd_t old_pmd =*pmd;
@@ -231,9 +296,13 @@ static void alloc_init_pud(struct mm_struct *mm, pgd_t *pgd,
 		} else {
 			alloc_init_pmd(mm, pud, addr, next, phys, prot, alloc);
 		}
+
 		phys += next - addr;
 	} while (pud++, addr = next, addr != end);
+	
+	
 }
+#endif /* CONFIG_XPFO */
 
 /*
  * Create the page directory entries and any necessary page tables for the

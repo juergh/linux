@@ -55,24 +55,35 @@ static inline struct page *kmap_to_page(void *addr)
 #ifndef ARCH_HAS_KMAP
 static inline void *kmap(struct page *page)
 {
+	void *kaddr;
+	
 	might_sleep();
-	return page_address(page);
+	
+	kaddr = page_address(page);
+	xpfo_ctl(XPFO_CMD_KMAP, kaddr, page, 1);
+	return kaddr;
 }
 
 static inline void kunmap(struct page *page)
 {
+	xpfo_ctl(XPFO_CMD_KUNMAP, page_address(page), page, 1);
 }
 
 static inline void *kmap_atomic(struct page *page)
 {
+	void *kaddr;
+	
 	preempt_disable();
 	pagefault_disable();
-	return page_address(page);
+	kaddr = page_address(page);
+	xpfo_ctl(XPFO_CMD_KMAP, kaddr, page, 1);
+	return kaddr;
 }
 #define kmap_atomic_prot(page, prot)	kmap_atomic(page)
 
 static inline void __kunmap_atomic(void *addr)
 {
+	xpfo_ctl(XPFO_CMD_KUNMAP, addr, virt_to_page(addr), 1);
 	pagefault_enable();
 	preempt_enable();
 }
@@ -133,8 +144,11 @@ do {                                                            \
 #ifndef clear_user_highpage
 static inline void clear_user_highpage(struct page *page, unsigned long vaddr)
 {
-	void *addr = kmap_atomic(page);
-	clear_user_page(addr, vaddr, page);
+	void *addr;
+
+	addr = kmap_atomic(page);
+	if (!__TestClearPageZap(page))
+		clear_user_page(addr, vaddr, page);
 	kunmap_atomic(addr);
 }
 #endif
@@ -186,8 +200,11 @@ alloc_zeroed_user_highpage_movable(struct vm_area_struct *vma,
 
 static inline void clear_highpage(struct page *page)
 {
-	void *kaddr = kmap_atomic(page);
-	clear_page(kaddr);
+	void *kaddr;
+
+	kaddr = kmap_atomic(page);
+	if (!__TestClearPageZap(page))
+		clear_page(kaddr);
 	kunmap_atomic(kaddr);
 }
 

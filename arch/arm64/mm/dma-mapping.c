@@ -25,11 +25,14 @@
 #include <linux/dma-contiguous.h>
 #include <linux/vmalloc.h>
 #include <linux/swiotlb.h>
-
+#include <linux/highmem.h>
+#include <asm/pgtable.h>
 #include <asm/cacheflush.h>
+#include <linux/xpfo.h>
 
 struct dma_map_ops *dma_ops;
 EXPORT_SYMBOL(dma_ops);
+
 
 static pgprot_t __get_dma_pgprot(struct dma_attrs *attrs, pgprot_t prot,
 				 bool coherent)
@@ -211,8 +214,8 @@ static dma_addr_t __swiotlb_map_page(struct device *dev, struct page *page,
 
 	dev_addr = swiotlb_map_page(dev, page, offset, size, dir, attrs);
 	if (!is_device_dma_coherent(dev))
-		__dma_map_area(phys_to_virt(dma_to_phys(dev, dev_addr)), size, dir);
-
+		xpfo_dma_map_area(phys_to_virt(dma_to_phys(dev, dev_addr)), size, dir);
+	
 	return dev_addr;
 }
 
@@ -221,8 +224,10 @@ static void __swiotlb_unmap_page(struct device *dev, dma_addr_t dev_addr,
 				 size_t size, enum dma_data_direction dir,
 				 struct dma_attrs *attrs)
 {
+	
 	if (!is_device_dma_coherent(dev))
-		__dma_unmap_area(phys_to_virt(dma_to_phys(dev, dev_addr)), size, dir);
+		xpfo_dma_unmap_area(phys_to_virt(dma_to_phys(dev, dev_addr)), size, dir);
+		
 	swiotlb_unmap_page(dev, dev_addr, size, dir, attrs);
 }
 
@@ -232,13 +237,15 @@ static int __swiotlb_map_sg_attrs(struct device *dev, struct scatterlist *sgl,
 {
 	struct scatterlist *sg;
 	int i, ret;
-
+	
 	ret = swiotlb_map_sg_attrs(dev, sgl, nelems, dir, attrs);
+
+		
 	if (!is_device_dma_coherent(dev))
 		for_each_sg(sgl, sg, ret, i)
-			__dma_map_area(phys_to_virt(dma_to_phys(dev, sg->dma_address)),
-				       sg->length, dir);
-
+			xpfo_dma_map_area(phys_to_virt(dma_to_phys(dev, sg->dma_address)),
+					    sg->length, dir);
+	
 	return ret;
 }
 
@@ -249,11 +256,12 @@ static void __swiotlb_unmap_sg_attrs(struct device *dev,
 {
 	struct scatterlist *sg;
 	int i;
-
+	
 	if (!is_device_dma_coherent(dev))
 		for_each_sg(sgl, sg, nelems, i)
-			__dma_unmap_area(phys_to_virt(dma_to_phys(dev, sg->dma_address)),
-					 sg->length, dir);
+			xpfo_dma_unmap_area(phys_to_virt(dma_to_phys(dev, sg->dma_address)),
+					      sg->length, dir);
+
 	swiotlb_unmap_sg_attrs(dev, sgl, nelems, dir, attrs);
 }
 
@@ -262,7 +270,8 @@ static void __swiotlb_sync_single_for_cpu(struct device *dev,
 					  enum dma_data_direction dir)
 {
 	if (!is_device_dma_coherent(dev))
-		__dma_unmap_area(phys_to_virt(dma_to_phys(dev, dev_addr)), size, dir);
+		xpfo_dma_unmap_area(phys_to_virt(dma_to_phys(dev, dev_addr)), size, dir);
+	
 	swiotlb_sync_single_for_cpu(dev, dev_addr, size, dir);
 }
 
@@ -272,7 +281,7 @@ static void __swiotlb_sync_single_for_device(struct device *dev,
 {
 	swiotlb_sync_single_for_device(dev, dev_addr, size, dir);
 	if (!is_device_dma_coherent(dev))
-		__dma_map_area(phys_to_virt(dma_to_phys(dev, dev_addr)), size, dir);
+		xpfo_dma_map_area(phys_to_virt(dma_to_phys(dev, dev_addr)), size, dir);
 }
 
 static void __swiotlb_sync_sg_for_cpu(struct device *dev,
@@ -281,26 +290,27 @@ static void __swiotlb_sync_sg_for_cpu(struct device *dev,
 {
 	struct scatterlist *sg;
 	int i;
-
+	
 	if (!is_device_dma_coherent(dev))
 		for_each_sg(sgl, sg, nelems, i)
-			__dma_unmap_area(phys_to_virt(dma_to_phys(dev, sg->dma_address)),
-					 sg->length, dir);
+			xpfo_dma_unmap_area(phys_to_virt(dma_to_phys(dev, sg->dma_address)),
+					      sg->length, dir);
+	
 	swiotlb_sync_sg_for_cpu(dev, sgl, nelems, dir);
 }
 
 static void __swiotlb_sync_sg_for_device(struct device *dev,
-					 struct scatterlist *sgl, int nelems,
-					 enum dma_data_direction dir)
+		                         struct scatterlist *sgl, int nelems,
+		                         enum dma_data_direction dir)
 {
 	struct scatterlist *sg;
 	int i;
-
+	
 	swiotlb_sync_sg_for_device(dev, sgl, nelems, dir);
 	if (!is_device_dma_coherent(dev))
 		for_each_sg(sgl, sg, nelems, i)
-			__dma_map_area(phys_to_virt(dma_to_phys(dev, sg->dma_address)),
-				       sg->length, dir);
+			xpfo_dma_map_area(phys_to_virt(dma_to_phys(dev, sg->dma_address)),
+		sg->length, dir);
 }
 
 /* vma->vm_page_prot must be set appropriately before calling this function */

@@ -118,6 +118,15 @@ static inline void __flush_tlb_kernel_range(unsigned long start, unsigned long e
 	isb();
 }
 
+static inline void __flush_tlb_kernel_one(unsigned long addr)
+{
+	addr >>= 12;
+	dsb(ishst);
+	asm("tlbi vaae1is, %0" : : "r"(addr));
+	dsb(ish);
+	isb();
+}
+
 /*
  * This is meant to avoid soft lock-ups on large TLB flushing ranges and not
  * necessarily a performance improvement.
@@ -141,6 +150,10 @@ static inline void flush_tlb_kernel_range(unsigned long start, unsigned long end
 		flush_tlb_all();
 }
 
+static inline void flush_tlb_kernel_one(unsigned long addr)
+{
+	__flush_tlb_kernel_one(addr);
+}
 /*
  * Used to invalidate the TLB (walk caches) corresponding to intermediate page
  * table levels (pgd/pud/pmd).

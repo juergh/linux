@@ -196,6 +196,68 @@ struct page {
 #ifdef LAST_CPUPID_NOT_IN_PAGE_FLAGS
 	int _last_cpupid;
 #endif
+	#ifdef CONFIG_XPFO
+	/*
+	 * XPFO
+	 *
+	 * `xpfo_flags':	Bit-encoded flags. We do *not* use the page
+	 * 			flags (i.e., `struct page.flags'), since this
+	 * 			field is highly congested and we currently need
+	 * 			four (4) new flags for XPFO.
+	 *   [0]: `user_fp' ->	Denotes that the page frame is destined to user
+	 *   			space. This flag is used in the fast-path, where
+	 *   			we only mark the page frame accordingly and we
+	 *   			do *not* unmap it from the direct mapped RAM
+	 *   			region. In most cases, the kernel will need to
+	 *   			mangle the page frame immediately after its
+	 *   			acquisition (e.g., COW, zero-fill) -- we avoid
+	 *   			an unnecessary map operation with `user_fp'.
+	 *   [1]: `user'    ->	Denotes that the page frame is destined to user
+	 *   			space. This flag is used in the slow-path, where
+	 *   			we need to map/unmap the page frame in/from the
+	 *   			direct mapped RAM region, every time the kernel
+	 *   			accesses the contents of the page frame (e.g.,
+	 *   			COW, file-backed mmap-ed regions). In addition, 
+	 *   			`user' is used when page frames are deallocated.
+	 *   			If the page frame was previously assigned to
+	 *   			user space, it is zapped and mapped back to the 
+	 *   			direct mapped RAM region.
+	 *   [2]: `kernel'  ->	Denotes a page frame destined to kernel space.
+	 *   			This is used for identifying page frames that
+	 *   			are first assigned to kernel space (e.g., SLUB,
+	 *   			k*alloc), and then freed and mapped to user
+	 *   			space. In such cases, an expensive TLB shootdown
+	 *   			is necessary. However, by trying to allocate
+	 *   			previously-allocated kernel frames to kernel
+	 *   			space and previously-allocated user frames to
+	 *   			user space, we minimize TLB shootdowns. Page
+	 *   			frames allocated to user space, freed, and
+	 *   			subsequently allocated to user space, again,
+	 *   			require only local TLB invalidation.
+	 *   [3]: `zap'	    ->	Denotes that the page frame has been zapped.
+	 *   			This flag is used to avoid zapping page frames
+	 *   			twice. Whenever a page frame is freed and
+	 *   			previously mapped in user space, it needs to be
+	 *   			zapped before mapped back in the direct mapped
+	 *   			RAM region. If the page frame is subsequently
+	 *   			allocated with `__GFP_ZERO', we can avoid
+	 *   			clearing it again.
+	 *
+	 * `xpfo_kmcnt':	Reference counter; used for balancing calls for
+	 * 			mapping/unmapping. Upon multiple map requests,
+	 * 			for the *same* page frame, only the first
+	 * 			request maps the page frame back to kernel
+	 * 			space. Likewise, only the last unmap request
+	 * 			will remove the page frame from the direct
+	 * 			mapped RAM region.
+	 *
+	 * `xpfo_lock':		Mutex; used for concurrent map/unmap requests
+	 * 			for the *same* page frame.
+	 */
+	unsigned long	xpfo_flags;
+	atomic_t	xpfo_kmcnt;
+	spinlock_t	xpfo_lock;
+#endif
 }
 /*
  * The struct page can be forced to be double word aligned so that atomic ops

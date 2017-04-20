@@ -2,6 +2,23 @@ menu "Kernel hacking"
 
 source "lib/Kconfig.debug"
 
+
+config XPFO
+	bool "Enable exclusive page frame ownership (XPFO)"
+	depends on DEBUG_KERNEL && ARM64_64K_PAGES
+	depends on !HIBERNATION && !DEBUG_PAGEALLOC && !KMEMCHECK
+	default n
+	---help---
+	  This option offers protection against 'ret2dir' (kernel) attacks.
+	  When enabled, every time a page frame is allocated to user space, it
+	  gets unmapped from the direct mapped RAM region in kernel space
+	  (physmap). Similarly, whenever page frames are freed/reclaimed, they
+	  are mapped back to physmap. Special care is given to minimize the
+	  impact in performance, by reducing TLB shootdowns and unnecessary page
+	  zero fills.
+
+	  If in doubt, say "N".
+
 config FRAME_POINTER
 	bool
 	default y
