@@ -142,6 +142,18 @@ static void alloc_init_pte(pmd_t *pmd, unsigned long addr,
 	pte_clear_fixmap();
 }
 
+static inline bool use_section_mapping(unsigned long addr, unsigned long next,
+				unsigned long phys)
+{
+	if (IS_ENABLED(CONFIG_XPFO))
+		return false;
+
+	if (((addr | next | phys) & ~SECTION_MASK) != 0)
+		return false;
+
+	return true;
+}
+
 static void alloc_init_pmd(pud_t *pud, unsigned long addr, unsigned long end,
 				  phys_addr_t phys, pgprot_t prot,
 				  phys_addr_t (*pgtable_alloc)(void),
@@ -171,8 +183,8 @@ static void alloc_init_pmd(pud_t *pud, unsigned long addr, unsigned long end,
 		next = pmd_addr_end(addr, end);
 
 		/* try section mapping first */
-		if (((addr | next | phys) & ~SECTION_MASK) == 0 &&
-		      !page_mappings_only) {
+		if (use_section_mapping(addr, next, phys) &&
+		    !page_mappings_only) {
 			pmd_set_huge(pmd, phys, prot);
 
 			/*
