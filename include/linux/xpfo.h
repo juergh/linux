@@ -19,6 +19,7 @@
 extern struct page_ext_operations page_xpfo_ops;
 
 void set_kpte(void *kaddr, struct page *page, pgprot_t prot);
+void xpfo_dma_map_unmap_area(bool map, const void *addr, size_t size, int dir);
 
 void xpfo_kmap(void *kaddr, struct page *page);
 void xpfo_kunmap(void *kaddr, struct page *page);
