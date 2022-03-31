@@ -53,7 +53,7 @@ config SOC_IMX35
 	help
 	  This enables support for Freescale i.MX35 processor
 
-endif
+endif # ARCH_MULTI_V6
 
 if ARCH_MULTI_V4T
 
@@ -65,7 +65,7 @@ config SOC_IMX1
 	help
 	  This enables support for Freescale i.MX1 processor
 
-endif
+endif # ARCH_MULTI_V4T
 
 if ARCH_MULTI_V5
 
@@ -85,7 +85,7 @@ config SOC_IMX27
 	help
 	  This enables support for Freescale i.MX27 processor
 
-endif
+endif # ARCH_MULTI_V5
 
 if ARCH_MULTI_V7
 
@@ -96,7 +96,7 @@ config SOC_IMX5
 	select HAVE_IMX_SRC
 	select MXC_TZIC
 
-config	SOC_IMX50
+config SOC_IMX50
 	bool "i.MX50 support"
 	select PINCTRL_IMX50
 	select SOC_IMX5
@@ -111,7 +111,7 @@ config SOC_IMX51
 	help
 	  This enables support for Freescale i.MX51 processor
 
-config	SOC_IMX53
+config SOC_IMX53
 	bool "i.MX53 support"
 	select PINCTRL_IMX53
 	select SOC_IMX5
@@ -190,7 +190,7 @@ config SOC_LS1021A
 	help
 	  This enables support for Freescale LS1021A processor.
 
-endif
+endif # ARCH_MULTI_V7
 
 if ARCH_MULTI_V7 || ARM_SINGLE_ARMV7M
 
@@ -216,7 +216,7 @@ config SOC_IMX7D
 	select SOC_IMX7D_CM4 if ARM_SINGLE_ARMV7M
 	select ARM_ERRATA_814220 if ARCH_MULTI_V7
 	help
-		This enables support for Freescale i.MX7 Dual processor.
+	  This enables support for Freescale i.MX7 Dual processor.
 
 config SOC_IMX7ULP
 	bool "i.MX7ULP support"
@@ -263,6 +263,6 @@ choice
 
 endchoice
 
-endif
+endif # ARCH_MULTI_V7 || ARM_SINGLE_ARMV7M
 
-endif
+endif # ARCH_MXC
