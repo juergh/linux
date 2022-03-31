@@ -22,28 +22,28 @@ config DEBUG_WX
 	depends on MMU
 	select ARM_PTDUMP_CORE
 	help
-		Generate a warning if any W+X mappings are found at boot.
+	  Generate a warning if any W+X mappings are found at boot.
 
-		This is useful for discovering cases where the kernel is leaving
-		W+X mappings after applying NX, as such mappings are a security risk.
+	  This is useful for discovering cases where the kernel is leaving
+	  W+X mappings after applying NX, as such mappings are a security risk.
 
-		Look for a message in dmesg output like this:
+	  Look for a message in dmesg output like this:
 
-			arm/mm: Checked W+X mappings: passed, no W+X pages found.
+		arm/mm: Checked W+X mappings: passed, no W+X pages found.
 
-		or like this, if the check failed:
+	  or like this, if the check failed:
 
-			arm/mm: Checked W+X mappings: FAILED, <N> W+X pages found.
+		arm/mm: Checked W+X mappings: FAILED, <N> W+X pages found.
 
-		Note that even if the check fails, your kernel is possibly
-		still fine, as W+X mappings are not a security hole in
-		themselves, what they do is that they make the exploitation
-		of other unfixed kernel bugs easier.
+	  Note that even if the check fails, your kernel is possibly
+	  still fine, as W+X mappings are not a security hole in
+	  themselves, what they do is that they make the exploitation
+	  of other unfixed kernel bugs easier.
 
-		There is no runtime or memory usage effect of this option
-		once the kernel has booted up - it's a one time check.
+	  There is no runtime or memory usage effect of this option
+	  once the kernel has booted up - it's a one time check.
 
-		If in doubt, say "Y".
+	  If in doubt, say "Y".
 
 choice
 	prompt "Choose kernel unwinder"
@@ -293,7 +293,7 @@ choice
 		select DEBUG_UART_8250
 		help
 		  Say Y here if you want the debug print routines to direct
-                  their output to the CNS3xxx UART0.
+		  their output to the CNS3xxx UART0.
 
 	config DEBUG_DAVINCI_DA8XX_UART1
 		bool "Kernel low-level debugging on DaVinci DA8XX using UART1"
@@ -847,7 +847,7 @@ choice
 		select DEBUG_UART_8250
 		help
 		  Say Y here if you want kernel low-level debugging support
-                  on Rockchip RV1108 based platforms.
+		  on Rockchip RV1108 based platforms.
 
 	config DEBUG_RV1108_UART1
 		bool "Kernel low-level debugging messages via Rockchip RV1108 UART1"
@@ -1724,7 +1724,7 @@ config DEBUG_UART_PHYS
 	default 0xffffee00 if DEBUG_AT91_SAM9263_DBGU
 	default 0xfffff200 if DEBUG_AT91_RM9200_DBGU
 	depends on ARCH_EP93XX || \
-	        DEBUG_LL_UART_8250 || DEBUG_LL_UART_PL01X || \
+		DEBUG_LL_UART_8250 || DEBUG_LL_UART_PL01X || \
 		DEBUG_UART_8250 || DEBUG_UART_PL01X || DEBUG_MESON_UARTAO || \
 		DEBUG_QCOM_UARTDM || DEBUG_R7S72100_SCIF2 || \
 		DEBUG_R7S9210_SCIF2 || DEBUG_R7S9210_SCIF4 || \
@@ -1895,7 +1895,6 @@ config DEBUG_UNCOMPRESS
 	  When this option is set, the selected DEBUG_LL output method
 	  will be re-used for normal decompressor output on multiplatform
 	  kernels.
-	  
 
 config UNCOMPRESS_INCLUDE
 	string
