@@ -103,7 +103,7 @@ config MACH_GPLUGD
 	help
 	  Say 'Y' here if you want to support the Marvell PXA168-based
 	  GuruPlug Display (gplugD) Board
-endif
+endif # ATAGS
 
 config MACH_MMP_DT
 	bool "Support MMP (ARMv5) platforms from device tree"
@@ -148,7 +148,7 @@ config MACH_MMP3_DT
 	  with Marvell MMP3 processor, also known as PXA2128 or
 	  Armada 620.
 
-endmenu
+endmenu # "Marvell PXA168/910/MMP2 Implementations"
 
 config CPU_PXA168
 	bool
@@ -169,7 +169,7 @@ config CPU_MMP2
 	  Select code specific to MMP2. MMP2 is ARMv7 compatible.
 
 config USB_EHCI_MV_U2O
-        bool "EHCI support for PXA USB OTG controller"
+	bool "EHCI support for PXA USB OTG controller"
 	depends on USB_EHCI_MV
 	help
 	  Enables support for OTG controller which can be switched to host mode.
@@ -177,4 +177,4 @@ config USB_EHCI_MV_U2O
 config MMP_SRAM
 	bool
 
-endif
+endif # ARCH_MMP
