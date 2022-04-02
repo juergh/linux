@@ -122,7 +122,6 @@ config ARCH_OMAP2PLUS
 config OMAP_INTERCONNECT_BARRIER
 	bool
 	select ARM_HEAVY_MB
-	
 
 if ARCH_OMAP2PLUS
 
@@ -192,10 +191,10 @@ config MACH_OMAP2_TUSB6010
 	default y if MACH_NOKIA_N8X0
 
 config MACH_NOKIA_N810
-       bool
+	bool
 
 config MACH_NOKIA_N810_WIMAX
-       bool
+	bool
 
 config MACH_NOKIA_N8X0
 	bool "Nokia N800/N810"
@@ -215,9 +214,9 @@ config OMAP3_SDRC_AC_TIMING
 	  wish to say no.  Selecting yes without understanding what is
 	  going on could result in system crashes;
 
-endmenu
+endmenu # "TI OMAP2/3/4 Specific Features"
 
-endif
+endif # ARCH_OMAP2PLUS
 
 config OMAP5_ERRATA_801819
 	bool "Errata 801819: An eviction from L1 data cache might stall indefinitely"
@@ -227,4 +226,4 @@ config OMAP5_ERRATA_801819
 	  a snoop from completing. Under certain conditions this can cause the
 	  system to deadlock.
 
-endmenu
+endmenu # "TI OMAP/AM/DM/DRA Family"
