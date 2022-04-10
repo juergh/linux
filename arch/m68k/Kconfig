@@ -119,11 +119,11 @@ source "arch/m68k/Kconfig.machine"
 
 source "arch/m68k/Kconfig.bus"
 
-endmenu
+endmenu # "Platform setup"
 
 menu "Kernel Features"
 
-endmenu
+endmenu # "Kernel Features"
 
 if !MMU
 menu "Power management options"
@@ -133,7 +133,7 @@ config PM
 	help
 	  Support processor power management modes
 
-endmenu
-endif
+endmenu # "Power management options"
+endif # !MMU
 
 source "arch/m68k/Kconfig.devices"
