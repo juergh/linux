@@ -61,11 +61,11 @@ config GENERIC_ISA_DMA
 
 source "drivers/zorro/Kconfig"
 
-endif
+endif # MMU
 
 if COLDFIRE
 
 config ISA_DMA_API
 	def_bool !M5272
 
-endif
+endif # COLDFIRE
