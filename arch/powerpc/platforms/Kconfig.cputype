@@ -308,7 +308,7 @@ config PTE_64BIT
 	default y if PHYS_64BIT
 
 config PHYS_64BIT
-	bool 'Large physical address support' if E500 || PPC_86xx
+	bool "Large physical address support" if E500 || PPC_86xx
 	depends on (44x || E500 || PPC_86xx) && !PPC_83xx && !PPC_82xx
 	select PHYS_ADDR_T_64BIT
 	help
@@ -442,7 +442,6 @@ config PPC_PKEY
 	depends on PPC_BOOK3S_64
 	depends on PPC_MEM_KEYS || PPC_KUAP || PPC_KUEP
 
-
 config PPC_MMU_NOHASH
 	def_bool y
 	depends on !PPC_BOOK3S
@@ -467,7 +466,7 @@ config PPC_PERF_CTRS
 	def_bool y
 	depends on PERF_EVENTS && PPC_HAVE_PMU_SUPPORT
 	help
-	 This enables the powerpc-specific perf_event back-end.
+	  This enables the powerpc-specific perf_event back-end.
 
 config FORCE_SMP
 	# Allow platforms to force SMP=y by selecting this
@@ -518,7 +517,7 @@ config CHECK_CACHE_COHERENCY
 config PPC_DOORBELL
 	bool
 
-endmenu
+endmenu # "Processor support"
 
 config VDSO32
 	def_bool y
