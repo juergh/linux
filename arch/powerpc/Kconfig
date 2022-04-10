@@ -11,7 +11,7 @@ config 64BIT
 
 config LIVEPATCH_64
 	def_bool PPC64
-	depends	on LIVEPATCH
+	depends on LIVEPATCH
 
 config MMU
 	bool
@@ -446,7 +446,7 @@ choice
 	default MATH_EMULATION_FULL
 	depends on MATH_EMULATION
 
-config	MATH_EMULATION_FULL
+config MATH_EMULATION_FULL
 	bool "Emulate all the floating point instructions"
 	help
 	  Select this option will enable the kernel to support to emulate
@@ -990,7 +990,7 @@ config PPC_RTAS_FILTER
 	  Say Y unless you know what you are doing and the filter is causing
 	  problems for you.
 
-endmenu
+endmenu # "Kernel options"
 
 config ISA_DMA_API
 	bool
@@ -1078,7 +1078,7 @@ config FSL_RIO
 	  Include support for RapidIO controller on Freescale embedded
 	  processors (MPC8548, MPC8641, etc).
 
-endmenu
+endmenu # "Bus options"
 
 config NONSTATIC_KERNEL
 	bool
@@ -1220,7 +1220,7 @@ config TASK_SIZE
 	default "0x80000000" if PPC_8xx
 	default "0xb0000000" if PPC_BOOK3S_32
 	default "0xc0000000"
-endmenu
+endmenu # "Advanced setup"
 
 if PPC64
 # This value must have zeroes in the bottom 60 bits otherwise lots will break
@@ -1233,9 +1233,9 @@ config KERNEL_START
 config PHYSICAL_START
 	hex
 	default "0x00000000"
-endif
+endif # PPC64
 
-config	ARCH_RANDOM
+config ARCH_RANDOM
 	def_bool n
 
 config PPC_LIB_RHEAP
