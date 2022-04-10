@@ -80,7 +80,7 @@ config ATARI_ETHERNEC
 	  To compile the actual ethernet driver, choose Y or M in for the NE2000
 	  option in the network device section; the module will be called ne.
 
-endmenu
+endmenu # "Platform devices"
 
 menu "Character devices"
 
@@ -140,6 +140,6 @@ config SERIAL_CONSOLE
 
 	  If unsure, say N.
 
-endmenu
+endmenu # "Character devices"
 
-endif
+endif # MMU
