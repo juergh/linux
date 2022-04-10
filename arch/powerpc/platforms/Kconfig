@@ -200,7 +200,7 @@ menu "CPUIdle driver"
 
 source "drivers/cpuidle/Kconfig"
 
-endmenu
+endmenu # "CPUIdle driver"
 
 config TAU
 	bool "On-chip CPU temperature sensor support"
@@ -299,4 +299,4 @@ config MCU_MPC8349EMITX
 	  also register MCU GPIOs with the generic GPIO API, so you'll able
 	  to use MCU pins as GPIOs.
 
-endmenu
+endmenu # "Platform support"
