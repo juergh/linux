@@ -474,4 +474,4 @@ config ROMKERNEL
 
 endchoice
 
-endif
+endif # !MMU || COLDFIRE
