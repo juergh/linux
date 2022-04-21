@@ -1530,8 +1530,6 @@ err_deinit:
 static void qcom_pcie_host_deinit(struct qcom_pcie *pcie)
 {
 	qcom_ep_reset_assert(pcie);
-	if (pcie->cfg->ops->post_deinit)
-		pcie->cfg->ops->post_deinit(pcie);
 	phy_power_off(pcie->phy);
 	pcie->cfg->ops->deinit(pcie);
 }
