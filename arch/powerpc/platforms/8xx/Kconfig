@@ -56,7 +56,7 @@ endchoice
 menu "Freescale Ethernet driver platform-specific options"
 	depends on (FS_ENET && MPC885ADS)
 
-	config MPC8xx_SECOND_ETH
+config MPC8xx_SECOND_ETH
 	bool "Second Ethernet channel"
 	depends on MPC885ADS
 	default y
@@ -64,28 +64,28 @@ menu "Freescale Ethernet driver platform-specific options"
 	  This enables support for second Ethernet on MPC885ADS and MPC86xADS boards.
 	  The latter will use SCC1, for 885ADS you can select it below.
 
-	choice
-		prompt "Second Ethernet channel"
-		depends on MPC8xx_SECOND_ETH
-		default MPC8xx_SECOND_ETH_FEC2
+choice
+	prompt "Second Ethernet channel"
+	depends on MPC8xx_SECOND_ETH
+	default MPC8xx_SECOND_ETH_FEC2
 
-		config MPC8xx_SECOND_ETH_FEC2
-		bool "FEC2"
-		depends on MPC885ADS
-		help
-		  Enable FEC2 to serve as 2-nd Ethernet channel. Note that SMC2
-		  (often 2-nd UART) will not work if this is enabled.
+config MPC8xx_SECOND_ETH_FEC2
+	bool "FEC2"
+	depends on MPC885ADS
+	help
+	  Enable FEC2 to serve as 2-nd Ethernet channel. Note that SMC2
+	  (often 2-nd UART) will not work if this is enabled.
 
-		config MPC8xx_SECOND_ETH_SCC3
-		bool "SCC3"
-		depends on MPC885ADS
-		help
-		  Enable SCC3 to serve as 2-nd Ethernet channel. Note that SMC1
-		  (often 1-nd UART) will not work if this is enabled.
+config MPC8xx_SECOND_ETH_SCC3
+	bool "SCC3"
+	depends on MPC885ADS
+	help
+	  Enable SCC3 to serve as 2-nd Ethernet channel. Note that SMC1
+	  (often 1-nd UART) will not work if this is enabled.
 
-	endchoice
+endchoice
 
-endmenu
+endmenu # "Freescale Ethernet driver platform-specific options"
 
 #
 # MPC8xx Communication options
@@ -194,6 +194,6 @@ config PIN_TLB_IMMR
 	  CONFIG_PIN_TLB_DATA is also selected, it will reduce
 	  CONFIG_PIN_TLB_DATA to 24 Mbytes.
 
-endmenu
+endmenu # "8xx advanced setup"
 
-endmenu
+endmenu # "MPC8xx CPM Options"
