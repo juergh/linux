@@ -156,9 +156,9 @@ config PPC_SVM
 	select ARCH_HAS_FORCE_DMA_UNENCRYPTED
 	select ARCH_HAS_CC_PLATFORM
 	help
-	 There are certain POWER platforms which support secure guests using
-	 the Protected Execution Facility, with the help of an Ultravisor
-	 executing below the hypervisor layer. This enables support for
-	 those guests.
+	  There are certain POWER platforms which support secure guests using
+	  the Protected Execution Facility, with the help of an Ultravisor
+	  executing below the hypervisor layer. This enables support for
+	  those guests.
 
-	 If unsure, say "N".
+	  If unsure, say "N".
