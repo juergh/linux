@@ -35,9 +35,9 @@ config BSC9131_RDB
 	  Manufacturer : Freescale Semiconductor, Inc
 
 config C293_PCIE
-	  bool "Freescale C293PCIE"
-	  select DEFAULT_UIMAGE
-	  help
+	bool "Freescale C293PCIE"
+	select DEFAULT_UIMAGE
+	help
 	  This option enables support for the C293PCIE board
 
 config BSC9132_QDS
