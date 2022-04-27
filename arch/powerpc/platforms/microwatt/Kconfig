@@ -8,5 +8,4 @@ config PPC_MICROWATT
 	select PPC_UDBG_16550
 	select ARCH_RANDOM
 	help
-          This option enables support for FPGA-based Microwatt implementations.
-
+	  This option enables support for FPGA-based Microwatt implementations.
