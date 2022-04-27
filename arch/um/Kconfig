@@ -81,7 +81,7 @@ config ARCH_HAS_CACHE_LINE_SIZE
 source "arch/$(HEADER_ARCH)/um/Kconfig"
 
 config MAY_HAVE_RUNTIME_DEPS
-        bool
+	bool
 
 config STATIC_LINK
 	bool "Force a static link"
@@ -219,7 +219,7 @@ config UML_TIME_TRAVEL_SUPPORT
 
 	  It is safe to say Y, but you probably don't need this.
 
-endmenu
+endmenu # "UML-specific options"
 
 source "arch/um/drivers/Kconfig"
 
