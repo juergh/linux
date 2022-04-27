@@ -11,9 +11,9 @@ config AMIGAONE
 	select DEFAULT_UIMAGE
 	select HAVE_PCSPKR_PLATFORM
 	help
-	Select AmigaOne for the following machines:
-	- AmigaOne SE/Teron CX (G3 only)
-	- AmigaOne XE/Teron PX
-	- uA1/Teron mini
-	  More information is available at:
-	  <http://amigaone-linux.sourceforge.net/>.
+	  Select AmigaOne for the following machines:
+	  - AmigaOne SE/Teron CX (G3 only)
+	  - AmigaOne XE/Teron PX
+	  - uA1/Teron mini
+	    More information is available at:
+	    <http://amigaone-linux.sourceforge.net/>.
