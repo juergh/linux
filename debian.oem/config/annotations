@@ -1461,7 +1461,7 @@ CONFIG_DMATEST                                  flag<TESTING>
 CONFIG_SYNC_FILE                                policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'ppc64el': 'y', 'riscv64': 'y', 's390x': 'y'}>
 CONFIG_SW_SYNC                                  policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'ppc64el': 'y', 'riscv64': 'y', 's390x': 'y'}>
 CONFIG_UDMABUF                                  policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'ppc64el': 'y', 'riscv64': 'y', 's390x': 'y'}>
-CONFIG_DMABUF_MOVE_NOTIFY                       policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'ppc64el': 'y', 'riscv64': 'y', 's390x': 'y'}>
+CONFIG_DMABUF_MOVE_NOTIFY                       policy<{'amd64': 'y', 'arm64': 'n', 'armhf': 'y', 'ppc64el': 'y', 'riscv64': 'y', 's390x': 'y'}>
 CONFIG_DMABUF_DEBUG                             policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'ppc64el': 'n', 'riscv64': 'n', 's390x': 'n'}>
 CONFIG_DMABUF_SELFTESTS                         policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'ppc64el': 'n', 'riscv64': 'n', 's390x': 'n'}>
 CONFIG_DMABUF_SYSFS_STATS                       policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'ppc64el': 'n', 'riscv64': 'n', 's390x': 'n'}>
@@ -3754,7 +3754,7 @@ CONFIG_INFINIBAND_IRDMA                         policy<{'amd64': 'm', 'arm64': '
 CONFIG_MLX4_INFINIBAND                          policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': 'm'}>
 CONFIG_MLX5_INFINIBAND                          policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': 'm'}>
 CONFIG_INFINIBAND_OCRDMA                        policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': 'n'}>
-CONFIG_INFINIBAND_VMWARE_PVRDMA                 policy<{'amd64': 'm', 'arm64-generic': 'm', 'armhf': 'm', 'riscv64': 'm'}>
+CONFIG_INFINIBAND_VMWARE_PVRDMA                 policy<{'amd64': 'm', 'arm64-oem': 'm', 'armhf': 'm', 'riscv64': 'm'}>
 CONFIG_INFINIBAND_USNIC                         policy<{'amd64': 'm'}>
 CONFIG_INFINIBAND_HNS                           policy<{'arm64': 'm'}>
 CONFIG_INFINIBAND_HNS_HIP08                     policy<{'arm64': 'y'}>
@@ -5721,7 +5721,7 @@ CONFIG_NVMEM_BCM_OCOTP                          policy<{'arm64': 'm'}>
 CONFIG_NVMEM_SUNXI_SID                          policy<{'arm64': 'm', 'armhf': '-'}>
 CONFIG_UNIPHIER_EFUSE                           policy<{'armhf': 'n', 'armhf-generic-lpae': '-'}>
 CONFIG_NVMEM_VF610_OCOTP                        policy<{'armhf': 'n'}>
-CONFIG_MESON_EFUSE                              policy<{'arm64-generic': 'm'}>
+CONFIG_MESON_EFUSE                              policy<{'arm64-oem': 'm'}>
 CONFIG_MESON_MX_EFUSE                           policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_NVMEM_SNVS_LPGPR                         policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_RAVE_SP_EEPROM                           policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
@@ -5741,7 +5741,7 @@ CONFIG_MICREL_KS8995MA                          policy<{'amd64': 'm', 'arm64': '
 CONFIG_PLIP                                     policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_XEN_NETDEV_FRONTEND                      policy<{'amd64': 'y', 'arm64': 'y', 'armhf': '-'}>
 CONFIG_XEN_NETDEV_BACKEND                       policy<{'amd64': 'm', 'arm64': 'm', 'armhf': '-'}>
-CONFIG_VMXNET3                                  policy<{'amd64': 'm', 'arm64-generic': 'm', 'armhf': 'm', 'riscv64': 'm', 's390x': 'n'}>
+CONFIG_VMXNET3                                  policy<{'amd64': 'm', 'arm64-oem': 'm', 'armhf': 'm', 'riscv64': 'm', 's390x': 'n'}>
 CONFIG_FUJITSU_ES                               policy<{'amd64': 'm', 'arm64': 'm'}>
 CONFIG_USB4_NET                                 policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_HYPERV_NET                               policy<{'amd64': 'm', 'arm64': 'm'}>
@@ -6986,7 +6986,7 @@ CONFIG_XEN_PCIDEV_FRONTEND                      policy<{'amd64': 'm'}>
 CONFIG_PCI_IOV                                  policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'ppc64el': 'y', 'riscv64': 'y', 's390x': 'y'}>
 CONFIG_PCI_PRI                                  policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'ppc64el': 'y', 'riscv64': 'y', 's390x': 'n'}>
 CONFIG_PCI_PASID                                policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'ppc64el': 'y', 'riscv64': 'y', 's390x': 'n'}>
-CONFIG_PCI_P2PDMA                               policy<{'amd64': 'y', 'arm64': 'y', 'ppc64el': 'y'}>
+CONFIG_PCI_P2PDMA                               policy<{'amd64': 'y', 'arm64': 'n', 'ppc64el': 'y'}>
 CONFIG_PCI_HYPERV                               policy<{'amd64': 'm', 'arm64': 'm'}>
 CONFIG_PCIEPORTBUS                              policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'ppc64el': 'n', 'riscv64': 'y', 's390x': 'y'}>
 CONFIG_HOTPLUG_PCI_PCIE                         policy<{'amd64': 'y', 'arm64': 'y', 'riscv64': 'y', 's390x': 'y', 'armhf': '-', 'ppc64el': '-'}>
@@ -8195,7 +8195,7 @@ CONFIG_MESON_CLK_MEASURE                        policy<{'arm64': 'y', 'armhf': '
 CONFIG_MESON_GX_SOCINFO                         policy<{'arm64': 'y'}>
 CONFIG_MESON_GX_PM_DOMAINS                      policy<{'arm64': 'y', 'armhf': 'y'}>
 CONFIG_MESON_EE_PM_DOMAINS                      policy<{'arm64': 'y', 'armhf': 'y'}>
-CONFIG_MESON_SECURE_PM_DOMAINS                  policy<{'arm64-generic': 'y'}>
+CONFIG_MESON_SECURE_PM_DOMAINS                  policy<{'arm64-oem': 'y'}>
 CONFIG_MESON_MX_SOCINFO                         policy<{'armhf': 'y'}>
 
 # Menu: Device Drivers >> SOC (System On Chip) specific Drivers >> Broadcom SoC drivers
@@ -10669,7 +10669,7 @@ CONFIG_EXFAT_FS                                 policy<{'amd64': 'm', 'arm64': '
 CONFIG_EXFAT_DEFAULT_IOCHARSET                  policy<{'amd64': '"utf8"', 'arm64': '"utf8"', 'armhf': '"utf8"', 'ppc64el': '"utf8"', 'riscv64': '"utf8"'}>
 CONFIG_NTFS_FS                                  policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': 'm'}>
 CONFIG_NTFS_DEBUG                               policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'ppc64el': 'n', 'riscv64': 'n', 's390x': 'n'}>
-CONFIG_NTFS_RW                                  policy<{'amd64': 'n', 'arm64-generic': 'n', 'armhf': 'n', 'ppc64el': '-', 'riscv64': 'n', 's390x': 'y'}>
+CONFIG_NTFS_RW                                  policy<{'amd64': 'n', 'arm64-oem': 'n', 'armhf': 'n', 'ppc64el': '-', 'riscv64': 'n', 's390x': 'y'}>
 CONFIG_VFAT_FS                                  policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'ppc64el': 'y', 'riscv64': 'y', 's390x': 'y'}>
 CONFIG_FAT_DEFAULT_CODEPAGE                     policy<{'amd64': '437', 'arm64': '437', 'armhf': '437', 'ppc64el': '437', 'riscv64': '437', 's390x': '437'}>
 CONFIG_FAT_DEFAULT_IOCHARSET                    policy<{'amd64': '"iso8859-1"', 'arm64': '"iso8859-1"', 'armhf': '"iso8859-1"', 'ppc64el': '"iso8859-1"', 'riscv64': '"iso8859-1"', 's390x': '"iso8859-1"'}>
@@ -11076,7 +11076,7 @@ CONFIG_EFI_CUSTOM_SSDT_OVERLAYS                 policy<{'amd64': 'y', 'arm64': '
 CONFIG_IMX_DSP                                  policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_IMX_SCU                                  policy<{'arm64': 'y', 'armhf': 'y'}>
 CONFIG_IMX_SCU_PD                               policy<{'arm64': 'y', 'armhf': 'y'}>
-CONFIG_MESON_SM                                 policy<{'arm64-generic': 'y'}>
+CONFIG_MESON_SM                                 policy<{'arm64-oem': 'y'}>
 CONFIG_ARM_PSCI_CHECKER                         policy<{'arm64': 'n', 'armhf': 'n'}>
 CONFIG_ARM_SMCCC_SOC_ID                         policy<{'arm64': 'y', 'armhf': 'y'}>
 #
@@ -13411,7 +13411,7 @@ CONFIG_XEN                                      policy<{'amd64': 'y', 'arm64': '
 CONFIG_HIGHPTE                                  policy<{'armhf': 'y'}>
 CONFIG_COMPAT_VDSO                              policy<{'amd64': 'n'}>
 CONFIG_HIGHMEM                                  policy<{'armhf': 'y'}>
-CONFIG_FORCE_MAX_ZONEORDER                      policy<{'arm64-generic': '13', 'arm64-generic-64k': '14', 'armhf-generic': '12', 'armhf-generic-lpae': '11', 'ppc64el': '9'}>
+CONFIG_FORCE_MAX_ZONEORDER                      policy<{'arm64-oem': '13', 'arm64-generic-64k': '14', 'armhf-generic': '12', 'armhf-generic-lpae': '11', 'ppc64el': '9'}>
 #
 CONFIG_RELOCATABLE                              flag<REVIEW>
 CONFIG_HOTPLUG_CPU                              flag<REVIEW>
@@ -13680,9 +13680,9 @@ CONFIG_VMSPLIT_1G                               policy<{'armhf': 'n'}>
 # Menu: Processor type and features >> Memory split >> Architecture: x86
 
 # Menu: Processor type and features >> Page size >> Architecture: arm64
-CONFIG_ARM64_4K_PAGES                           policy<{'arm64-generic': 'y', 'arm64-generic-64k': 'n'}>
+CONFIG_ARM64_4K_PAGES                           policy<{'arm64-oem': 'y', 'arm64-generic-64k': 'n'}>
 CONFIG_ARM64_16K_PAGES                          policy<{'arm64': 'n'}>
-CONFIG_ARM64_64K_PAGES                          policy<{'arm64-generic': 'n', 'arm64-generic-64k': 'y'}>
+CONFIG_ARM64_64K_PAGES                          policy<{'arm64-oem': 'n', 'arm64-generic-64k': 'y'}>
 
 # Menu: Processor type and features >> Page size >> Architecture: powerpc
 CONFIG_PPC_4K_PAGES                             policy<{'ppc64el': 'n'}>
@@ -13789,7 +13789,7 @@ CONFIG_TUNE_Z14                                 policy<{'s390x': 'n'}>
 CONFIG_TUNE_Z15                                 policy<{'s390x': 'y'}>
 
 # Menu: Processor type and features >> Virtual address space size >> Architecture: arm64
-CONFIG_ARM64_VA_BITS_39                         policy<{'arm64-generic': 'n'}>
+CONFIG_ARM64_VA_BITS_39                         policy<{'arm64-oem': 'n'}>
 CONFIG_ARM64_VA_BITS_42                         policy<{'arm64-generic-64k': 'n'}>
 CONFIG_ARM64_VA_BITS_48                         policy<{'arm64': 'y'}>
 CONFIG_ARM64_VA_BITS_52                         policy<{'arm64-generic-64k': 'n'}>
