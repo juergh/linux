@@ -11,3 +11,5 @@ repo_list=(
 package_prefixes linux-buildinfo
 
 getall amd64 oem
+# FIXME: Enable after first use of getabis
+# getall arm64 oem

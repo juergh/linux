@@ -1,4 +1,4 @@
-arch="amd64"
+arch="amd64 arm64"
 supported="OEM"
 target="Geared toward desktops and laptops."
 desc="=HUMAN= SMP"
