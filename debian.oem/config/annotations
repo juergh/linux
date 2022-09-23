@@ -1286,7 +1286,7 @@ CONFIG_CLK_SIFIVE                               policy<{'riscv64': 'y'}>
 CONFIG_CLK_SIFIVE_PRCI                          policy<{'riscv64': 'y'}>
 
 # Menu: Device Drivers >> Common Clock Framework >> Support for Qualcomm's clock controllers
-CONFIG_COMMON_CLK_QCOM                          policy<{'arm64': 'm', 'armhf': 'm'}>
+CONFIG_COMMON_CLK_QCOM                          policy<{'arm64': 'y', 'armhf': 'm'}>
 CONFIG_QCOM_A53PLL                              policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_QCOM_A7PLL                               policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_QCOM_CLK_APCS_MSM8916                    policy<{'arm64': 'm', 'armhf': 'm'}>
@@ -1294,7 +1294,7 @@ CONFIG_QCOM_CLK_APCC_MSM8996                    policy<{'arm64': 'm'}>
 CONFIG_QCOM_CLK_APCS_SDX55                      policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_QCOM_CLK_RPM                             policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_QCOM_CLK_SMD_RPM                         policy<{'arm64': 'm', 'armhf': 'm'}>
-CONFIG_QCOM_CLK_RPMH                            policy<{'arm64': 'm', 'armhf': 'm'}>
+CONFIG_QCOM_CLK_RPMH                            policy<{'arm64': 'y', 'armhf': 'm'}>
 CONFIG_APQ_GCC_8084                             policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_APQ_MMCC_8084                            policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_IPQ_APSS_PLL                             policy<{'arm64': 'm', 'armhf': 'm'}>
@@ -2627,11 +2627,11 @@ CONFIG_USB_RAINSHADOW_CEC                       policy<{'amd64': 'm', 'arm64': '
 # Menu: Device Drivers >> HID support
 
 # Menu: Device Drivers >> HID support >> HID bus support
-CONFIG_HID                                      policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': 'n'}>
+CONFIG_HID                                      policy<{'amd64': 'm', 'arm64': 'y', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': 'n'}>
 CONFIG_HID_BATTERY_STRENGTH                     policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'ppc64el': 'y', 'riscv64': 'y', 's390x': '-'}>
 CONFIG_HIDRAW                                   policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'ppc64el': 'y', 'riscv64': 'y', 's390x': '-'}>
 CONFIG_UHID                                     policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': '-'}>
-CONFIG_HID_GENERIC                              policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': '-'}>
+CONFIG_HID_GENERIC                              policy<{'amd64': 'm', 'arm64': 'y', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': '-'}>
 
 # Menu: Device Drivers >> HID support >> HID bus support >> AMD SFH HID Support
 CONFIG_AMD_SFH_HID                              policy<{'amd64': 'm'}>
@@ -2760,7 +2760,7 @@ CONFIG_HID_PICOLCD_CIR                          policy<{'amd64': 'y', 'arm64': '
 
 # Menu: Device Drivers >> HID support >> I2C HID support
 CONFIG_I2C_HID_ACPI                             policy<{'amd64': 'm', 'arm64': 'm'}>
-CONFIG_I2C_HID_OF                               policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
+CONFIG_I2C_HID_OF                               policy<{'arm64': 'y', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_I2C_HID_OF_GOODIX                        policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 
 # Menu: Device Drivers >> HID support >> Intel ISH HID support
@@ -3126,7 +3126,7 @@ CONFIG_I2C_PCA_PLATFORM                         policy<{'amd64': 'm', 'arm64': '
 CONFIG_I2C_PXA                                  policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_I2C_PXA_SLAVE                            policy<{'arm64': 'y', 'armhf': 'y'}>
 CONFIG_I2C_QCOM_CCI                             policy<{'arm64': 'm', 'armhf': 'm'}>
-CONFIG_I2C_QCOM_GENI                            policy<{'arm64': 'm', 'armhf': 'm'}>
+CONFIG_I2C_QCOM_GENI                            policy<{'arm64': 'y', 'armhf': 'm'}>
 CONFIG_I2C_QUP                                  policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_I2C_RIIC                                 policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_I2C_RK3X                                 policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
@@ -4836,8 +4836,8 @@ CONFIG_PCF50633_ADC                             policy<{'amd64': 'm', 'arm64': '
 CONFIG_PCF50633_GPIO                            policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_UCB1400_CORE                             policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_MFD_PM8XXX                               policy<{'armhf': 'm'}>
-CONFIG_MFD_QCOM_RPM                             policy<{'arm64': 'm', 'armhf': 'm'}>
-CONFIG_MFD_SPMI_PMIC                            policy<{'arm64': 'm', 'armhf': 'm'}>
+CONFIG_MFD_QCOM_RPM                             policy<{'arm64': 'y', 'armhf': 'm'}>
+CONFIG_MFD_SPMI_PMIC                            policy<{'arm64': 'y', 'armhf': 'm'}>
 CONFIG_MFD_RDC321X                              policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': 'n'}>
 CONFIG_MFD_RT4831                               policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': 'n'}>
 CONFIG_MFD_RT5033                               policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': 'n'}>
@@ -7174,10 +7174,10 @@ CONFIG_PHY_QCOM_APQ8064_SATA                    policy<{'arm64': 'm', 'armhf': '
 CONFIG_PHY_QCOM_IPQ4019_USB                     policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_PHY_QCOM_IPQ806X_SATA                    policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_PHY_QCOM_PCIE2                           policy<{'arm64': 'm', 'armhf': 'm'}>
-CONFIG_PHY_QCOM_QMP                             policy<{'arm64': 'm', 'armhf': 'm'}>
+CONFIG_PHY_QCOM_QMP                             policy<{'arm64': 'y', 'armhf': 'm'}>
 CONFIG_PHY_QCOM_QUSB2                           policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_PHY_QCOM_USB_HS                          policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
-CONFIG_PHY_QCOM_USB_SNPS_FEMTO_V2               policy<{'arm64': 'm', 'armhf': 'm'}>
+CONFIG_PHY_QCOM_USB_SNPS_FEMTO_V2               policy<{'arm64': 'y', 'armhf': 'm'}>
 CONFIG_PHY_QCOM_USB_HSIC                        policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_PHY_QCOM_USB_HS_28NM                     policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_PHY_QCOM_USB_SS                          policy<{'arm64': 'm', 'armhf': 'm'}>
@@ -7339,7 +7339,7 @@ CONFIG_PINCTRL_LEWISBURG                        policy<{'amd64': 'm'}>
 CONFIG_PINCTRL_SUNRISEPOINT                     policy<{'amd64': 'm'}>
 CONFIG_PINCTRL_TIGERLAKE                        policy<{'amd64': 'm'}>
 CONFIG_PINCTRL_NPCM7XX                          policy<{'armhf': 'y'}>
-CONFIG_PINCTRL_QCOM_SPMI_PMIC                   policy<{'arm64': 'm', 'armhf': 'm'}>
+CONFIG_PINCTRL_QCOM_SPMI_PMIC                   policy<{'arm64': 'y', 'armhf': 'm'}>
 CONFIG_PINCTRL_QCOM_SSBI_PMIC                   policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_PINCTRL_LPASS_LPI                        policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_PINCTRL_EXYNOS                           policy<{'armhf': 'y'}>
@@ -8236,7 +8236,7 @@ CONFIG_FSL_QMAN_TEST                            policy<{'arm64': 'n'}>
 CONFIG_QCOM_CPR                                 policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_QCOM_AOSS_QMP                            policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_QCOM_COMMAND_DB                          policy<{'arm64': 'y', 'armhf': 'y'}>
-CONFIG_QCOM_GENI_SE                             policy<{'arm64': 'm', 'armhf': 'm'}>
+CONFIG_QCOM_GENI_SE                             policy<{'arm64': 'y', 'armhf': 'm'}>
 CONFIG_QCOM_GSBI                                policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_QCOM_LLCC                                policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_QCOM_OCMEM                               policy<{'arm64': 'm', 'armhf': 'm'}>
@@ -8428,8 +8428,8 @@ CONFIG_SPI_DW_PCI                               policy<{'amd64': 'm', 'arm64': '
 CONFIG_SPI_DW_MMIO                              policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 
 # Menu: Device Drivers >> SPMI support
-CONFIG_SPMI                                     policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': 'n'}>
-CONFIG_SPMI_MSM_PMIC_ARB                        policy<{'arm64': 'm', 'armhf': 'm'}>
+CONFIG_SPMI                                     policy<{'amd64': 'm', 'arm64': 'y', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': 'n'}>
+CONFIG_SPMI_MSM_PMIC_ARB                        policy<{'arm64': 'y', 'armhf': 'm'}>
 CONFIG_SPMI_HISI3670                            policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 
 # Menu: Device Drivers >> Serial ATA and Parallel ATA drivers (libata)
@@ -10058,7 +10058,7 @@ CONFIG_ACRN_HSM                                 policy<{'amd64': 'm'}>
 # Menu: Device Drivers >> Voltage and Current Regulator Support
 CONFIG_REGULATOR                                policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'ppc64el': 'y', 'riscv64': 'y', 's390x': 'n'}>
 CONFIG_REGULATOR_DEBUG                          policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'ppc64el': 'n', 'riscv64': 'n', 's390x': '-'}>
-CONFIG_REGULATOR_FIXED_VOLTAGE                  policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'y', 'ppc64el': 'm', 'riscv64': 'm', 's390x': '-'}>
+CONFIG_REGULATOR_FIXED_VOLTAGE                  policy<{'amd64': 'm', 'arm64': 'y', 'armhf': 'y', 'ppc64el': 'm', 'riscv64': 'm', 's390x': '-'}>
 CONFIG_REGULATOR_VIRTUAL_CONSUMER               policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': '-'}>
 CONFIG_REGULATOR_USERSPACE_CONSUMER             policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': '-'}>
 CONFIG_REGULATOR_88PG86X                        policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': '-'}>
@@ -10155,7 +10155,7 @@ CONFIG_REGULATOR_PV88060                        policy<{'amd64': 'm', 'arm64': '
 CONFIG_REGULATOR_PV88080                        policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': '-'}>
 CONFIG_REGULATOR_PV88090                        policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': '-'}>
 CONFIG_REGULATOR_PWM                            policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': '-'}>
-CONFIG_REGULATOR_QCOM_RPM                       policy<{'arm64': 'm', 'armhf': 'm'}>
+CONFIG_REGULATOR_QCOM_RPM                       policy<{'arm64': 'y', 'armhf': 'm'}>
 CONFIG_REGULATOR_QCOM_RPMH                      policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_REGULATOR_QCOM_SMD_RPM                   policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_REGULATOR_QCOM_SPMI                      policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
