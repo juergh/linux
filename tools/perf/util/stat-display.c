@@ -67,7 +67,7 @@ static void print_noise(struct perf_stat_config *config,
 		return;
 
 	ps = evsel->stats;
-	print_noise_pct(config, stddev_stats(&ps->res_stats[0]), avg);
+	print_noise_pct(config, stddev_stats(&ps->res_stats), avg);
 }
 
 static void print_cgroup(struct perf_stat_config *config, struct evsel *evsel)
@@ -168,10 +168,9 @@ static void aggr_printout(struct perf_stat_config *config,
 					id.socket,
 					id.die,
 					id.core);
-			} else if (id.core > -1) {
+			} else
 				fprintf(config->output, "\"cpu\" : \"%d\", ",
 					id.cpu.cpu);
-			}
 		} else {
 			if (evsel->percore && !config->percore_show_thread) {
 				fprintf(config->output, "S%d-D%d-C%*d%s",
@@ -179,24 +178,23 @@ static void aggr_printout(struct perf_stat_config *config,
 					id.die,
 					config->csv_output ? 0 : -3,
 					id.core, config->csv_sep);
-			} else if (id.core > -1) {
+			} else
 				fprintf(config->output, "CPU%*d%s",
 					config->csv_output ? 0 : -7,
 					id.cpu.cpu, config->csv_sep);
-			}
 		}
 		break;
 	case AGGR_THREAD:
 		if (config->json_output) {
 			fprintf(config->output, "\"thread\" : \"%s-%d\", ",
-				perf_thread_map__comm(evsel->core.threads, id.thread),
-				perf_thread_map__pid(evsel->core.threads, id.thread));
+				perf_thread_map__comm(evsel->core.threads, id.thread_idx),
+				perf_thread_map__pid(evsel->core.threads, id.thread_idx));
 		} else {
 			fprintf(config->output, "%*s-%*d%s",
 				config->csv_output ? 0 : 16,
-				perf_thread_map__comm(evsel->core.threads, id.thread),
+				perf_thread_map__comm(evsel->core.threads, id.thread_idx),
 				config->csv_output ? 0 : -8,
-				perf_thread_map__pid(evsel->core.threads, id.thread),
+				perf_thread_map__pid(evsel->core.threads, id.thread_idx),
 				config->csv_sep);
 		}
 		break;
@@ -442,7 +440,7 @@ static void print_metric_header(struct perf_stat_config *config,
 		fprintf(os->fh, "%*s ", config->metric_only_len, unit);
 }
 
-static int first_shadow_cpu_map_idx(struct perf_stat_config *config,
+static int first_shadow_map_idx(struct perf_stat_config *config,
 				struct evsel *evsel, const struct aggr_cpu_id *id)
 {
 	struct perf_cpu_map *cpus = evsel__cpus(evsel);
@@ -451,6 +449,9 @@ static int first_shadow_cpu_map_idx(struct perf_stat_config *config,
 
 	if (config->aggr_mode == AGGR_NONE)
 		return perf_cpu_map__idx(cpus, id->cpu);
+
+	if (config->aggr_mode == AGGR_THREAD)
+		return id->thread_idx;
 
 	if (!config->aggr_get_id)
 		return 0;
@@ -646,7 +647,7 @@ static void printout(struct perf_stat_config *config, struct aggr_cpu_id id, int
 	}
 
 	perf_stat__print_shadow_stats(config, counter, uval,
-				first_shadow_cpu_map_idx(config, counter, &id),
+				first_shadow_map_idx(config, counter, &id),
 				&out, &config->metric_events, st);
 	if (!config->csv_output && !config->metric_only && !config->json_output) {
 		print_noise(config, counter, noise);
@@ -676,7 +677,7 @@ static void aggr_update_shadow(struct perf_stat_config *config,
 				val += perf_counts(counter->counts, idx, 0)->val;
 			}
 			perf_stat__update_shadow_stats(counter, val,
-					first_shadow_cpu_map_idx(config, counter, &id),
+					first_shadow_map_idx(config, counter, &id),
 					&rt_stat);
 		}
 	}
@@ -943,7 +944,7 @@ static struct perf_aggr_thread_value *sort_aggr_thread(
 
 		buf[i].counter = counter;
 		buf[i].id = aggr_cpu_id__empty();
-		buf[i].id.thread = thread;
+		buf[i].id.thread_idx = thread;
 		buf[i].uval = uval;
 		buf[i].val = val;
 		buf[i].run = run;
@@ -979,14 +980,9 @@ static void print_aggr_thread(struct perf_stat_config *config,
 			fprintf(output, "%s", prefix);
 
 		id = buf[thread].id;
-		if (config->stats)
-			printout(config, id, 0, buf[thread].counter, buf[thread].uval,
-				 prefix, buf[thread].run, buf[thread].ena, 1.0,
-				 &config->stats[id.thread]);
-		else
-			printout(config, id, 0, buf[thread].counter, buf[thread].uval,
-				 prefix, buf[thread].run, buf[thread].ena, 1.0,
-				 &rt_stat);
+		printout(config, id, 0, buf[thread].counter, buf[thread].uval,
+			 prefix, buf[thread].run, buf[thread].ena, 1.0,
+			 &rt_stat);
 		fputc('\n', output);
 	}
 
