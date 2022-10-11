@@ -508,7 +508,7 @@ static inline int node_random(const nodemask_t *maskp)
 
 	w = nodes_weight(*maskp);
 	if (w)
-		bit = find_nth_bit(maskp->bits, MAX_NUMNODES, get_random_int() % w);
+		bit = find_nth_bit(maskp->bits, MAX_NUMNODES, prandom_u32_max(w));
 	return bit;
 #else
 	return 0;
