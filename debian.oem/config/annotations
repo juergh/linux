@@ -2047,7 +2047,7 @@ CONFIG_AGP                                      note<not autoloadable> flag<REVI
 # Menu: Device Drivers >> Graphics support >> ARM devices
 CONFIG_DRM_HDLCD                                policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_DRM_HDLCD_SHOW_UNDERRUN                  policy<{'arm64': 'n', 'armhf': 'n'}>
-CONFIG_DRM_MALI_DISPLAY                         policy<{'arm64': 'm', 'armhf': 'm'}>
+CONFIG_DRM_MALI_DISPLAY                         policy<{'arm64': 'y', 'armhf': 'm'}>
 CONFIG_DRM_KOMEDA                               policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 
 # Menu: Device Drivers >> Graphics support >> Backlight & LCD device support
@@ -2263,7 +2263,7 @@ CONFIG_DRM_CDNS_DSI                             policy<{'arm64': 'm', 'armhf': '
 CONFIG_DRM_CHIPONE_ICN6211                      policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_DRM_CHRONTEL_CH7033                      policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_DRM_CROS_EC_ANX7688                      policy<{'arm64': 'm', 'armhf': 'm'}>
-CONFIG_DRM_DISPLAY_CONNECTOR                    policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
+CONFIG_DRM_DISPLAY_CONNECTOR                    policy<{'arm64': 'y', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_DRM_LONTIUM_LT8912B                      policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_DRM_LONTIUM_LT9611                       policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_DRM_LONTIUM_LT9611UXC                    policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
@@ -2308,7 +2308,7 @@ CONFIG_DRM_PANEL_BOE_HIMAX8279D                 policy<{'arm64': 'm', 'armhf': '
 CONFIG_DRM_PANEL_BOE_TV101WUM_NL6               policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_DRM_PANEL_DSI_CM                         policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_DRM_PANEL_LVDS                           policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
-CONFIG_DRM_PANEL_SIMPLE                         policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm'}>
+CONFIG_DRM_PANEL_SIMPLE                         policy<{'arm64': 'y', 'armhf': 'm', 'ppc64el': 'm'}>
 CONFIG_DRM_PANEL_ELIDA_KD35T133                 policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_DRM_PANEL_FEIXIN_K101_IM2BA02            policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_DRM_PANEL_FEIYANG_FY07024DI26A30D        policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
