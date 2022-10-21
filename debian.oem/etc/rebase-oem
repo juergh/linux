@@ -1,0 +1,26 @@
+#!/bin/bash
+
+git fetch origin
+
+base_commit=$(git log --oneline | \
+				  grep -m1 'UBUNTU: Ubuntu-oem-' | \
+				  sed 's, .*,,')
+
+master_commit=$(git log --oneline origin/oem-6.0-next | \
+					grep -m1 'UBUNTU: Ubuntu-oem-' | \
+					sed 's, .*,,')
+
+git log --oneline "${base_commit}" -1
+git log --oneline "${master_commit}" -1
+
+while true ; do
+	echo -n "Rebase (y|n)? "
+	read -r tmp
+	case "${tmp,,}" in
+		y) break ;;
+		n) exit ;;
+		*) ;;
+	esac
+done
+
+git rebase --onto "${master_commit}" "${base_commit}"
