@@ -681,6 +681,17 @@ void hda_ipc4_dump(struct snd_sof_dev *sdev)
 		hipci, hipcie, hipct, hipcte, hipcctl);
 }
 
+bool hda_ipc4_tx_is_busy(struct snd_sof_dev *sdev)
+{
+	struct sof_intel_hda_dev *hda = sdev->pdata->hw_pdata;
+	const struct sof_intel_dsp_desc *chip = hda->desc;
+	u32 val;
+
+	val = snd_sof_dsp_read(sdev, HDA_DSP_BAR, chip->ipc_req);
+
+	return !!(val & chip->ipc_req_mask);
+}
+
 static int hda_init(struct snd_sof_dev *sdev)
 {
 	struct hda_bus *hbus;
@@ -1224,7 +1235,7 @@ int hda_dsp_remove(struct snd_sof_dev *sdev)
 
 	hda_dsp_stream_free(sdev);
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
-	snd_hdac_link_free_all(bus);
+	snd_hdac_ext_link_free_all(bus);
 #endif
 
 	iounmap(sdev->bar[HDA_DSP_BAR]);
