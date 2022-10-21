@@ -272,9 +272,13 @@ void __init collect_boot_cpu_data(void)
 		printk(KERN_INFO "capabilities 0x%lx\n",
 			boot_cpu_data.pdc.capabilities);
 
-	if (pdc_model_sysmodel(boot_cpu_data.pdc.sys_model_name) == PDC_OK)
-		printk(KERN_INFO "model %s\n",
+	if (pdc_model_sysmodel(OS_ID_HPUX, boot_cpu_data.pdc.sys_model_name) == PDC_OK)
+		pr_info("HP-UX model name: %s\n",
 			boot_cpu_data.pdc.sys_model_name);
+
+	serial_no[0] = 0;
+	pdc_model_sysmodel(OS_ID_MPEXL, serial_no);
+	pr_info("MPEXL model name: %s\n", serial_no[0] ? serial_no : "n/a");
 
 	dump_stack_set_arch_desc("%s", boot_cpu_data.pdc.sys_model_name);
 
