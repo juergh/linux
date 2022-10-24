@@ -35,7 +35,7 @@ static __init void init_cea_offsets(void)
 		unsigned int cea;
 
 again:
-		cea = prandom_u32_max(max_cea);
+		cea = get_random_u32_below(max_cea);
 
 		/* Make sure that no previous CPU shares the offset: */
 		for_each_possible_cpu(j) {
