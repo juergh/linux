@@ -7,6 +7,8 @@
 #include "transaction.h"
 #include "block-group.h"
 #include "disk-io.h"
+#include "fs.h"
+#include "accessors.h"
 
 /*
  * HOW DO BLOCK RESERVES WORK
@@ -552,5 +554,17 @@ try_reserve:
 		if (!ret)
 			return global_rsv;
 	}
+
+	/*
+	 * All hope is lost, but of course our reservations are overly
+	 * pessimistic, so instead of possibly having an ENOSPC abort here, try
+	 * one last time to force a reservation if there's enough actual space
+	 * on disk to make the reservation.
+	 */
+	ret = btrfs_reserve_metadata_bytes(fs_info, block_rsv, blocksize,
+					   BTRFS_RESERVE_FLUSH_EMERGENCY);
+	if (!ret)
+		return block_rsv;
+
 	return ERR_PTR(ret);
 }
