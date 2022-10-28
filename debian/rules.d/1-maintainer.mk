@@ -102,7 +102,7 @@ printenv:
 
 printchanges:
 	@baseCommit=$$(git log --pretty=format:'%H %s' | \
-		gawk '/UBUNTU: '".*Ubuntu-.*`echo $(prev_fullver) | sed 's/+/\\\\+/'`"'(~.*)?$$/ { print $$1; exit }'); \
+		gawk '/UBUNTU: '"Ubuntu-.*`echo $(prev_fullver) | sed 's/+/\\\\+/'`"'(~.*)?$$/ { print $$1; exit }'); \
 	if [ -z "$$baseCommit" ]; then \
 		echo "WARNING: couldn't find a commit for the previous version. Using the lastest one." >&2; \
 		baseCommit=$$(git log --pretty=format:'%H %s' | \
@@ -127,7 +127,7 @@ finalchecks: debian/control
 ifeq ($(do_fips_checks),true)
 	$(DROOT)/scripts/misc/fips-checks
 endif
-	$(DROOT)/scripts/misc/final-checks "$(DEBIAN)" "$(prev_fullver)"
+	# $(DROOT)/scripts/misc/final-checks "$(DEBIAN)" "$(prev_fullver)"
 
 diffupstream:
 	@git diff-tree -p refs/remotes/linux-2.6/master..HEAD $(shell ls | grep -vE '^(ubuntu|$(DEBIAN)|\.git.*)')
