@@ -1,6 +1,8 @@
 # Recreate any symlinks created since the orig.
 # Remove any files deleted from the orig.
+rm -f 'Documentation/devicetree/bindings/phy/qcom,qmp-phy.yaml'
 rm -f 'tools/testing/selftests/cpu-hotplug/config'
+chmod +x 'debian.oem/etc/rebase-oem'
 chmod +x 'debian/cloud-tools/hv_get_dhcp_info'
 chmod +x 'debian/cloud-tools/hv_get_dns_info'
 chmod +x 'debian/cloud-tools/hv_set_ifconfig'
