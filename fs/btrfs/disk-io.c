@@ -43,6 +43,15 @@
 #include "space-info.h"
 #include "zoned.h"
 #include "subpage.h"
+#include "fs.h"
+#include "accessors.h"
+#include "extent-tree.h"
+#include "root-tree.h"
+#include "defrag.h"
+#include "uuid-tree.h"
+#include "relocation.h"
+#include "scrub.h"
+#include "super.h"
 
 #define BTRFS_SUPER_FLAG_SUPP	(BTRFS_HEADER_FLAG_WRITTEN |\
 				 BTRFS_HEADER_FLAG_RELOC |\
@@ -1167,6 +1176,13 @@ struct btrfs_root *btrfs_extent_root(struct btrfs_fs_info *fs_info, u64 bytenr)
 	return btrfs_global_root(fs_info, &key);
 }
 
+struct btrfs_root *btrfs_block_group_root(struct btrfs_fs_info *fs_info)
+{
+	if (btrfs_fs_compat_ro(fs_info, BLOCK_GROUP_TREE))
+		return fs_info->block_group_root;
+	return btrfs_extent_root(fs_info, 0);
+}
+
 struct btrfs_root *btrfs_create_tree(struct btrfs_trans_handle *trans,
 				     u64 objectid)
 {
@@ -1197,7 +1213,7 @@ struct btrfs_root *btrfs_create_tree(struct btrfs_trans_handle *trans,
 	if (IS_ERR(leaf)) {
 		ret = PTR_ERR(leaf);
 		leaf = NULL;
-		goto fail_unlock;
+		goto fail;
 	}
 
 	root->node = leaf;
@@ -1232,9 +1248,6 @@ struct btrfs_root *btrfs_create_tree(struct btrfs_trans_handle *trans,
 
 	return root;
 
-fail_unlock:
-	if (leaf)
-		btrfs_tree_unlock(leaf);
 fail:
 	btrfs_put_root(root);
 
@@ -2084,8 +2097,6 @@ static void btrfs_stop_all_workers(struct btrfs_fs_info *fs_info)
 	btrfs_destroy_workqueue(fs_info->workers);
 	if (fs_info->endio_workers)
 		destroy_workqueue(fs_info->endio_workers);
-	if (fs_info->endio_raid56_workers)
-		destroy_workqueue(fs_info->endio_raid56_workers);
 	if (fs_info->rmw_workers)
 		destroy_workqueue(fs_info->rmw_workers);
 	if (fs_info->compressed_write_workers)
@@ -2291,8 +2302,6 @@ static int btrfs_init_workqueues(struct btrfs_fs_info *fs_info)
 		alloc_workqueue("btrfs-endio", flags, max_active);
 	fs_info->endio_meta_workers =
 		alloc_workqueue("btrfs-endio-meta", flags, max_active);
-	fs_info->endio_raid56_workers =
-		alloc_workqueue("btrfs-endio-raid56", flags, max_active);
 	fs_info->rmw_workers = alloc_workqueue("btrfs-rmw", flags, max_active);
 	fs_info->endio_write_workers =
 		btrfs_alloc_workqueue(fs_info, "endio-write", flags,
@@ -2314,7 +2323,7 @@ static int btrfs_init_workqueues(struct btrfs_fs_info *fs_info)
 	      fs_info->delalloc_workers && fs_info->flush_workers &&
 	      fs_info->endio_workers && fs_info->endio_meta_workers &&
 	      fs_info->compressed_write_workers &&
-	      fs_info->endio_write_workers && fs_info->endio_raid56_workers &&
+	      fs_info->endio_write_workers &&
 	      fs_info->endio_freespace_worker && fs_info->rmw_workers &&
 	      fs_info->caching_workers && fs_info->fixup_workers &&
 	      fs_info->delayed_workers && fs_info->qgroup_rescan_workers &&
@@ -3741,10 +3750,18 @@ int __cold open_ctree(struct super_block *sb, struct btrfs_fs_devices *fs_device
 	}
 
 	/*
-	 * Mount does not set all options immediately, we can do it now and do
-	 * not have to wait for transaction commit
+	 * For devices supporting discard turn on discard=async automatically,
+	 * unless it's already set or disabled. This could be turned off by
+	 * nodiscard for the same mount.
 	 */
-	btrfs_apply_pending_changes(fs_info);
+	if (!(btrfs_test_opt(fs_info, DISCARD_SYNC) ||
+	      btrfs_test_opt(fs_info, DISCARD_ASYNC) ||
+	      btrfs_test_opt(fs_info, NODISCARD)) &&
+	    fs_info->fs_devices->discardable) {
+		btrfs_set_and_info(fs_info, DISCARD_ASYNC,
+				   "auto enabling async discard");
+		btrfs_clear_opt(fs_info->mount_opt, NODISCARD);
+	}
 
 #ifdef CONFIG_BTRFS_FS_CHECK_INTEGRITY
 	if (btrfs_test_opt(fs_info, CHECK_INTEGRITY)) {
