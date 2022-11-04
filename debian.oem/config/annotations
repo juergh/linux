@@ -10156,7 +10156,7 @@ CONFIG_REGULATOR_PV88080                        policy<{'amd64': 'm', 'arm64': '
 CONFIG_REGULATOR_PV88090                        policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': '-'}>
 CONFIG_REGULATOR_PWM                            policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm', 's390x': '-'}>
 CONFIG_REGULATOR_QCOM_RPM                       policy<{'arm64': 'y', 'armhf': 'm'}>
-CONFIG_REGULATOR_QCOM_RPMH                      policy<{'arm64': 'm', 'armhf': 'm'}>
+CONFIG_REGULATOR_QCOM_RPMH                      policy<{'arm64': 'y', 'armhf': 'm'}>
 CONFIG_REGULATOR_QCOM_SMD_RPM                   policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_REGULATOR_QCOM_SPMI                      policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
 CONFIG_REGULATOR_QCOM_USB_VBUS                  policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm', 'riscv64': 'm'}>
