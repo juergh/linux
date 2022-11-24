@@ -975,6 +975,8 @@ static int collapse_huge_page(struct mm_struct *mm, unsigned long address,
 	int result = SCAN_FAIL;
 	struct vm_area_struct *vma;
 	struct mmu_notifier_range range;
+	struct mmu_gather tlb;
+	pgtable_t deposit_table = NULL;
 
 	VM_BUG_ON(address & ~HPAGE_PMD_MASK);
 
@@ -989,6 +991,11 @@ static int collapse_huge_page(struct mm_struct *mm, unsigned long address,
 	result = alloc_charge_hpage(&hpage, mm, cc);
 	if (result != SCAN_SUCCEED)
 		goto out_nolock;
+	deposit_table = pte_alloc_one(mm);
+	if (!deposit_table) {
+		result = SCAN_FAIL;
+		goto out_nolock;
+	}
 
 	mmap_read_lock(mm);
 	result = hugepage_vma_revalidate(mm, address, true, &vma, cc);
@@ -1041,12 +1048,12 @@ static int collapse_huge_page(struct mm_struct *mm, unsigned long address,
 
 	pmd_ptl = pmd_lock(mm, pmd); /* probably unnecessary */
 	/*
-	 * This removes any huge TLB entry from the CPU so we won't allow
-	 * huge and small TLB entries for the same virtual address to
-	 * avoid the risk of CPU bugs in that area.
-	 *
-	 * Parallel fast GUP is fine since fast GUP will back off when
-	 * it detects PMD is changed.
+	 * Unlink the page table from the PMD and do a TLB flush.
+	 * This ensures that the CPUs can't write to the old pages anymore by
+	 * the time __collapse_huge_page_copy() copies their contents, and it
+	 * allows __collapse_huge_page_copy() to free the old pages.
+	 * This also prevents lockless_pages_from_mm() from grabbing references
+	 * on the old pages from here on.
 	 */
 	_pmd = pmdp_collapse_flush(vma, address, pmd);
 	spin_unlock(pmd_ptl);
@@ -1090,6 +1097,16 @@ static int collapse_huge_page(struct mm_struct *mm, unsigned long address,
 	__SetPageUptodate(hpage);
 	pgtable = pmd_pgtable(_pmd);
 
+	/*
+	 * Discard the old page table.
+	 * The TLB flush that's implied here is redundant, but hard to avoid
+	 * with the current API.
+	 */
+	tlb_gather_mmu(&tlb, mm);
+	tlb_flush_pte_range(&tlb, address, HPAGE_PMD_SIZE);
+	pte_free_tlb(&tlb, pgtable, address);
+	tlb_finish_mmu(&tlb);
+
 	_pmd = mk_huge_pmd(hpage, vma->vm_page_prot);
 	_pmd = maybe_pmd_mkwrite(pmd_mkdirty(_pmd), vma);
 
@@ -1097,7 +1114,8 @@ static int collapse_huge_page(struct mm_struct *mm, unsigned long address,
 	BUG_ON(!pmd_none(*pmd));
 	page_add_new_anon_rmap(hpage, vma, address);
 	lru_cache_add_inactive_or_unevictable(hpage, vma);
-	pgtable_trans_huge_deposit(mm, pmd, pgtable);
+	pgtable_trans_huge_deposit(mm, pmd, deposit_table);
+	deposit_table = NULL;
 	set_pmd_at(mm, address, pmd, _pmd);
 	update_mmu_cache_pmd(vma, address, pmd);
 	spin_unlock(pmd_ptl);
@@ -1112,6 +1130,8 @@ out_nolock:
 		mem_cgroup_uncharge(page_folio(hpage));
 		put_page(hpage);
 	}
+	if (deposit_table)
+		pte_free(mm, deposit_table);
 	trace_mm_collapse_huge_page(mm, result == SCAN_SUCCEED, result);
 	return result;
 }
@@ -1237,15 +1257,8 @@ static int hpage_collapse_scan_pmd(struct mm_struct *mm,
 		/*
 		 * Check if the page has any GUP (or other external) pins.
 		 *
-		 * Here the check is racy it may see total_mapcount > refcount
-		 * in some cases.
-		 * For example, one process with one forked child process.
-		 * The parent has the PMD split due to MADV_DONTNEED, then
-		 * the child is trying unmap the whole PMD, but khugepaged
-		 * may be scanning the parent between the child has
-		 * PageDoubleMap flag cleared and dec the mapcount.  So
-		 * khugepaged may see total_mapcount > refcount.
-		 *
+		 * Here the check may be racy:
+		 * it may see total_mapcount > refcount in some cases?
 		 * But such case is ephemeral we could always retry collapse
 		 * later.  However it may report false positive if the page
 		 * has excessive GUP pins (i.e. 512).  Anyway the same check
@@ -1379,19 +1392,52 @@ static int set_huge_pmd(struct vm_area_struct *vma, unsigned long addr,
 	return SCAN_SUCCEED;
 }
 
+/*
+ * A note about locking:
+ * Trying to take the page table spinlocks would be useless here because those
+ * are only used to synchronize:
+ *
+ *  - modifying terminal entries (ones that point to a data page, not to another
+ *    page table)
+ *  - installing *new* non-terminal entries
+ *
+ * Instead, we need roughly the same kind of protection as free_pgtables() or
+ * mm_take_all_locks() (but only for a single VMA):
+ * The mmap lock together with this VMA's rmap locks covers all paths towards
+ * the page table entries we're messing with here, except for hardware page
+ * table walks and lockless_pages_from_mm().
+ *
+ * This function is similar to free_pte_range().
+ */
 static void collapse_and_free_pmd(struct mm_struct *mm, struct vm_area_struct *vma,
 				  unsigned long addr, pmd_t *pmdp)
 {
-	spinlock_t *ptl;
 	pmd_t pmd;
+	struct mmu_gather tlb;
+	struct mmu_notifier_range range;
 
 	mmap_assert_write_locked(mm);
-	ptl = pmd_lock(vma->vm_mm, pmdp);
-	pmd = pmdp_collapse_flush(vma, addr, pmdp);
-	spin_unlock(ptl);
-	mm_dec_nr_ptes(mm);
+	if (vma->vm_file)
+		lockdep_assert_held_write(&vma->vm_file->f_mapping->i_mmap_rwsem);
+	/*
+	 * All anon_vmas attached to the VMA have the same root and are
+	 * therefore locked by the same lock.
+	 */
+	if (vma->anon_vma)
+		lockdep_assert_held_write(&vma->anon_vma->root->rwsem);
 	page_table_check_pte_clear_range(mm, addr, pmd);
-	pte_free(mm, pmd_pgtable(pmd));
+
+	mmu_notifier_range_init(&range, MMU_NOTIFY_CLEAR, 0, NULL, mm, addr,
+				addr + HPAGE_PMD_SIZE);
+	mmu_notifier_invalidate_range_start(&range);
+	tlb_gather_mmu(&tlb, mm);
+	pmd = READ_ONCE(*pmdp);
+	pmd_clear(pmdp);
+	tlb_flush_pte_range(&tlb, addr, HPAGE_PMD_SIZE);
+	pte_free_tlb(&tlb, pmd_pgtable(pmd), addr);
+	tlb_finish_mmu(&tlb);
+	mmu_notifier_invalidate_range_end(&range);
+	mm_dec_nr_ptes(mm);
 }
 
 /**
@@ -1439,6 +1485,14 @@ int collapse_pte_mapped_thp(struct mm_struct *mm, unsigned long addr,
 	if (!hugepage_vma_check(vma, vma->vm_flags, false, false, false))
 		return SCAN_VMA_CHECK;
 
+	/*
+	 * Symmetry with retract_page_tables(): Exclude MAP_PRIVATE mappings
+	 * that got written to. Without this, we'd have to also lock the
+	 * anon_vma if one exists.
+	 */
+	if (vma->anon_vma)
+		return SCAN_VMA_CHECK;
+
 	/* Keep pmd pgtable for uffd-wp; see comment in retract_page_tables() */
 	if (userfaultfd_wp(vma))
 		return SCAN_PTE_UFFD_WP;
@@ -1472,6 +1526,20 @@ int collapse_pte_mapped_thp(struct mm_struct *mm, unsigned long addr,
 		goto drop_hpage;
 	}
 
+	/*
+	 * We need to lock the mapping so that from here on, only GUP-fast and
+	 * hardware page walks can access the parts of the page tables that
+	 * we're operating on.
+	 * See collapse_and_free_pmd().
+	 */
+	i_mmap_lock_write(vma->vm_file->f_mapping);
+
+	/*
+	 * This spinlock should be unnecessary: Nobody else should be accessing
+	 * the page tables under spinlock protection here, only
+	 * lockless_pages_from_mm() and the hardware page walker can access page
+	 * tables while all the high-level locks are held in write mode.
+	 */
 	start_pte = pte_offset_map_lock(mm, pmd, haddr, &ptl);
 	result = SCAN_FAIL;
 
@@ -1526,6 +1594,8 @@ int collapse_pte_mapped_thp(struct mm_struct *mm, unsigned long addr,
 	/* step 4: remove pte entries */
 	collapse_and_free_pmd(mm, vma, haddr, pmd);
 
+	i_mmap_unlock_write(vma->vm_file->f_mapping);
+
 maybe_install_pmd:
 	/* step 5: install pmd entry */
 	result = install_pmd
@@ -1539,6 +1609,7 @@ drop_hpage:
 
 abort:
 	pte_unmap_unlock(start_pte, ptl);
+	i_mmap_unlock_write(vma->vm_file->f_mapping);
 	goto drop_hpage;
 }
 
@@ -1595,7 +1666,8 @@ static int retract_page_tables(struct address_space *mapping, pgoff_t pgoff,
 		 * An alternative would be drop the check, but check that page
 		 * table is clear before calling pmdp_collapse_flush() under
 		 * ptl. It has higher chance to recover THP for the VMA, but
-		 * has higher cost too.
+		 * has higher cost too. It would also probably require locking
+		 * the anon_vma.
 		 */
 		if (vma->anon_vma) {
 			result = SCAN_PAGE_ANON;
@@ -1697,12 +1769,12 @@ static int collapse_file(struct mm_struct *mm, unsigned long addr,
 {
 	struct address_space *mapping = file->f_mapping;
 	struct page *hpage;
-	pgoff_t index, end = start + HPAGE_PMD_NR;
+	pgoff_t index = 0, end = start + HPAGE_PMD_NR;
 	LIST_HEAD(pagelist);
 	XA_STATE_ORDER(xas, &mapping->i_pages, start, HPAGE_PMD_ORDER);
 	int nr_none = 0, result = SCAN_SUCCEED;
 	bool is_shmem = shmem_file(file);
-	int nr;
+	int nr = 0;
 
 	VM_BUG_ON(!IS_ENABLED(CONFIG_READ_ONLY_THP_FOR_FS) && !is_shmem);
 	VM_BUG_ON(start & (HPAGE_PMD_NR - 1));
@@ -1742,6 +1814,7 @@ static int collapse_file(struct mm_struct *mm, unsigned long addr,
 	xas_set(&xas, start);
 	for (index = start; index < end; index++) {
 		struct page *page = xas_next(&xas);
+		struct folio *folio;
 
 		VM_BUG_ON(index != xas.xa_index);
 		if (is_shmem) {
@@ -1768,8 +1841,6 @@ static int collapse_file(struct mm_struct *mm, unsigned long addr,
 			}
 
 			if (xa_is_value(page) || !PageUptodate(page)) {
-				struct folio *folio;
-
 				xas_unlock_irq(&xas);
 				/* swap in or instantiate fallocated page */
 				if (shmem_get_folio(mapping->host, index,
@@ -1857,13 +1928,15 @@ static int collapse_file(struct mm_struct *mm, unsigned long addr,
 			goto out_unlock;
 		}
 
-		if (page_mapping(page) != mapping) {
+		folio = page_folio(page);
+
+		if (folio_mapping(folio) != mapping) {
 			result = SCAN_TRUNCATED;
 			goto out_unlock;
 		}
 
-		if (!is_shmem && (PageDirty(page) ||
-				  PageWriteback(page))) {
+		if (!is_shmem && (folio_test_dirty(folio) ||
+				  folio_test_writeback(folio))) {
 			/*
 			 * khugepaged only works on read-only fd, so this
 			 * page is dirty because it hasn't been flushed
@@ -1873,20 +1946,20 @@ static int collapse_file(struct mm_struct *mm, unsigned long addr,
 			goto out_unlock;
 		}
 
-		if (isolate_lru_page(page)) {
+		if (folio_isolate_lru(folio)) {
 			result = SCAN_DEL_PAGE_LRU;
 			goto out_unlock;
 		}
 
-		if (page_has_private(page) &&
-		    !try_to_release_page(page, GFP_KERNEL)) {
+		if (folio_has_private(folio) &&
+		    !filemap_release_folio(folio, GFP_KERNEL)) {
 			result = SCAN_PAGE_HAS_PRIVATE;
-			putback_lru_page(page);
+			folio_putback_lru(folio);
 			goto out_unlock;
 		}
 
-		if (page_mapped(page))
-			try_to_unmap(page_folio(page),
+		if (folio_mapped(folio))
+			try_to_unmap(folio,
 					TTU_IGNORE_MLOCK | TTU_BATCH_FLUSH);
 
 		xas_lock_irq(&xas);
@@ -2054,7 +2127,8 @@ out:
 		mem_cgroup_uncharge(page_folio(hpage));
 		put_page(hpage);
 	}
-	/* TODO: tracepoints */
+
+	trace_mm_khugepaged_collapse_file(mm, hpage, index, is_shmem, addr, file, nr, result);
 	return result;
 }
 
@@ -2521,6 +2595,11 @@ void khugepaged_min_free_kbytes_update(void)
 	if (hugepage_flags_enabled() && khugepaged_thread)
 		set_recommended_min_free_kbytes();
 	mutex_unlock(&khugepaged_mutex);
+}
+
+bool current_is_khugepaged(void)
+{
+	return kthread_func(current) == khugepaged;
 }
 
 static int madvise_collapse_errno(enum scan_result r)
