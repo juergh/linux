@@ -5,6 +5,12 @@
 
 #include <linux/linkage.h>
 
+// The code below (until the end of the file) is mapped into the EFI page
+// tables by the efi_map_rt_wrapper() routine, which assumes that it takes up
+// at most a page, and that it refers to external symbols using absolute
+// addressing only.
+
+	.section ".rodata", "a", %progbits
 SYM_FUNC_START(__efi_rt_asm_wrapper)
 	stp	x29, x30, [sp, #-112]!
 	mov	x29, sp
@@ -27,8 +33,10 @@ SYM_FUNC_START(__efi_rt_asm_wrapper)
 	stp	x25, x26, [sp, #80]
 	stp	x27, x28, [sp, #96]
 
-	adr_this_cpu	x8, __efi_rt_asm_recover_sp, x9
-	str		x29, [x8]
+	get_this_cpu_offset	x9
+
+	ldr	x8, =__efi_rt_asm_recover_sp
+	str	x29, [x8, x9]
 
 	/*
 	 * We are lucky enough that no EFI runtime services take more than
@@ -57,12 +65,16 @@ SYM_FUNC_START(__efi_rt_asm_wrapper)
 	 * for interrupts.
 	 */
 	mov	x18, x2
-	b	efi_handle_corrupted_x18	// tail call
+	ldr	x16, =efi_handle_corrupted_x18	// tail call
+	br	x16
 SYM_FUNC_END(__efi_rt_asm_wrapper)
 
-SYM_FUNC_START(__efi_rt_asm_recover)
-	ldr_this_cpu	x8, __efi_rt_asm_recover_sp, x9
-	mov		sp, x8
+SYM_CODE_START(__efi_rt_asm_recover)
+	get_this_cpu_offset	x9
+
+	ldr	x8, =__efi_rt_asm_recover_sp
+	ldr	x8, [x8, x9]
+	mov	sp, x8
 
 	ldp	x0,  x18, [sp, #16]
 	ldp	x19, x20, [sp, #32]
@@ -72,5 +84,6 @@ SYM_FUNC_START(__efi_rt_asm_recover)
 	ldp	x27, x28, [sp, #96]
 	ldp	x29, x30, [sp], #112
 
-	b	efi_handle_runtime_exception
-SYM_FUNC_END(__efi_rt_asm_recover)
+	ldr	x16, =efi_handle_runtime_exception
+	br	x16
+SYM_CODE_END(__efi_rt_asm_recover)
