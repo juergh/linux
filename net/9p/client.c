@@ -521,7 +521,7 @@ static int p9_check_errors(struct p9_client *c, struct p9_req_t *req)
 	err = p9_parse_header(&req->rc, NULL, &type, NULL, 0);
 	if (req->rc.size > req->rc.capacity && !req->rc.zc) {
 		pr_err(
-			 "requested packet size too big: %d does not fit %ld (type=%d)\n",
+			 "requested packet size too big: %d does not fit %zu (type=%d)\n",
 			 req->rc.size, req->rc.capacity, req->rc.id);
 		return -EIO;
 	}
