@@ -9,6 +9,8 @@
 #include "cxlpci.h"
 #include "cxl.h"
 
+#define CXL_RCRB_SIZE	SZ_8K
+
 static unsigned long cfmws_to_decoder_flags(int restrictions)
 {
 	unsigned long flags = CXL_DECODER_F_ENABLE;
@@ -70,6 +72,10 @@ static int cxl_acpi_cfmws_verify(struct device *dev,
 	return 0;
 }
 
+/*
+ * Note, @dev must be the first member, see 'struct cxl_chbs_context'
+ * and mock_acpi_table_parse_cedt()
+ */
 struct cxl_cfmws_context {
 	struct device *dev;
 	struct cxl_port *root_port;
@@ -193,34 +199,39 @@ static int add_host_bridge_uport(struct device *match, void *arg)
 {
 	struct cxl_port *root_port = arg;
 	struct device *host = root_port->dev.parent;
-	struct acpi_device *bridge = to_cxl_host_bridge(host, match);
+	struct acpi_device *hb = to_cxl_host_bridge(host, match);
 	struct acpi_pci_root *pci_root;
 	struct cxl_dport *dport;
 	struct cxl_port *port;
+	struct device *bridge;
 	int rc;
 
-	if (!bridge)
+	if (!hb)
 		return 0;
 
-	dport = cxl_find_dport_by_dev(root_port, match);
+	pci_root = acpi_pci_find_root(hb->handle);
+	bridge = pci_root->bus->bridge;
+	dport = cxl_find_dport_by_dev(root_port, bridge);
 	if (!dport) {
 		dev_dbg(host, "host bridge expected and not found\n");
 		return 0;
 	}
 
-	/*
-	 * Note that this lookup already succeeded in
-	 * to_cxl_host_bridge(), so no need to check for failure here
-	 */
-	pci_root = acpi_pci_find_root(bridge->handle);
-	rc = devm_cxl_register_pci_bus(host, match, pci_root->bus);
+	if (dport->rch) {
+		dev_info(bridge, "host supports CXL (restricted)\n");
+		return 0;
+	}
+
+	rc = devm_cxl_register_pci_bus(host, bridge, pci_root->bus);
 	if (rc)
 		return rc;
 
-	port = devm_cxl_add_port(host, match, dport->component_reg_phys, dport);
+	port = devm_cxl_add_port(host, bridge, dport->component_reg_phys,
+				 dport);
 	if (IS_ERR(port))
 		return PTR_ERR(port);
-	dev_dbg(host, "%s: add: %s\n", dev_name(match), dev_name(&port->dev));
+
+	dev_info(bridge, "host supports CXL\n");
 
 	return 0;
 }
@@ -228,7 +239,9 @@ static int add_host_bridge_uport(struct device *match, void *arg)
 struct cxl_chbs_context {
 	struct device *dev;
 	unsigned long long uid;
+	resource_size_t rcrb;
 	resource_size_t chbcr;
+	u32 cxl_version;
 };
 
 static int cxl_get_chbcr(union acpi_subtable_headers *header, void *arg,
@@ -244,51 +257,85 @@ static int cxl_get_chbcr(union acpi_subtable_headers *header, void *arg,
 
 	if (ctx->uid != chbs->uid)
 		return 0;
-	ctx->chbcr = chbs->base;
+
+	ctx->cxl_version = chbs->cxl_version;
+	ctx->rcrb = CXL_RESOURCE_NONE;
+	ctx->chbcr = CXL_RESOURCE_NONE;
+
+	if (!chbs->base)
+		return 0;
+
+	if (chbs->cxl_version != ACPI_CEDT_CHBS_VERSION_CXL11) {
+		ctx->chbcr = chbs->base;
+		return 0;
+	}
+
+	if (chbs->length != CXL_RCRB_SIZE)
+		return 0;
+
+	ctx->rcrb = chbs->base;
+	ctx->chbcr = cxl_rcrb_to_component(ctx->dev, chbs->base,
+					   CXL_RCRB_DOWNSTREAM);
 
 	return 0;
 }
 
 static int add_host_bridge_dport(struct device *match, void *arg)
 {
-	acpi_status status;
+	acpi_status rc;
+	struct device *bridge;
 	unsigned long long uid;
 	struct cxl_dport *dport;
 	struct cxl_chbs_context ctx;
+	struct acpi_pci_root *pci_root;
 	struct cxl_port *root_port = arg;
 	struct device *host = root_port->dev.parent;
-	struct acpi_device *bridge = to_cxl_host_bridge(host, match);
+	struct acpi_device *hb = to_cxl_host_bridge(host, match);
 
-	if (!bridge)
+	if (!hb)
 		return 0;
 
-	status = acpi_evaluate_integer(bridge->handle, METHOD_NAME__UID, NULL,
-				       &uid);
-	if (status != AE_OK) {
-		dev_err(host, "unable to retrieve _UID of %s\n",
-			dev_name(match));
+	rc = acpi_evaluate_integer(hb->handle, METHOD_NAME__UID, NULL, &uid);
+	if (rc != AE_OK) {
+		dev_err(match, "unable to retrieve _UID\n");
 		return -ENODEV;
 	}
 
+	dev_dbg(match, "UID found: %lld\n", uid);
+
 	ctx = (struct cxl_chbs_context) {
-		.dev = host,
+		.dev = match,
 		.uid = uid,
 	};
 	acpi_table_parse_cedt(ACPI_CEDT_TYPE_CHBS, cxl_get_chbcr, &ctx);
 
-	if (ctx.chbcr == 0) {
-		dev_warn(host, "No CHBS found for Host Bridge: %s\n",
-			 dev_name(match));
+	if (!ctx.chbcr) {
+		dev_warn(match, "No CHBS found for Host Bridge (UID %lld)\n",
+			 uid);
 		return 0;
 	}
 
-	dport = devm_cxl_add_dport(root_port, match, uid, ctx.chbcr);
-	if (IS_ERR(dport)) {
-		dev_err(host, "failed to add downstream port: %s\n",
-			dev_name(match));
-		return PTR_ERR(dport);
+	if (ctx.rcrb != CXL_RESOURCE_NONE)
+		dev_dbg(match, "RCRB found for UID %lld: %pa\n", uid, &ctx.rcrb);
+
+	if (ctx.chbcr == CXL_RESOURCE_NONE) {
+		dev_warn(match, "No CHBS found for Host Bridge (UID %lld)\n", uid);
+		return 0;
 	}
-	dev_dbg(host, "add dport%llu: %s\n", uid, dev_name(match));
+
+	dev_dbg(match, "CHBCR found: %pa\n", &ctx.chbcr);
+
+	pci_root = acpi_pci_find_root(hb->handle);
+	bridge = pci_root->bus->bridge;
+	if (ctx.cxl_version == ACPI_CEDT_CHBS_VERSION_CXL11)
+		dport = devm_cxl_add_rch_dport(root_port, bridge, uid,
+					       ctx.chbcr, ctx.rcrb);
+	else
+		dport = devm_cxl_add_dport(root_port, bridge, uid,
+					   ctx.chbcr);
+	if (IS_ERR(dport))
+		return PTR_ERR(dport);
+
 	return 0;
 }
 
@@ -466,7 +513,6 @@ static int cxl_acpi_probe(struct platform_device *pdev)
 	root_port = devm_cxl_add_port(host, host, CXL_RESOURCE_NONE, NULL);
 	if (IS_ERR(root_port))
 		return PTR_ERR(root_port);
-	dev_dbg(host, "add: %s\n", dev_name(&root_port->dev));
 
 	rc = bus_for_each_dev(adev->dev.bus, NULL, root_port,
 			      add_host_bridge_dport);
@@ -512,7 +558,8 @@ static int cxl_acpi_probe(struct platform_device *pdev)
 		return rc;
 
 	/* In case PCI is scanned before ACPI re-trigger memdev attach */
-	return cxl_bus_rescan();
+	cxl_bus_rescan();
+	return 0;
 }
 
 static const struct acpi_device_id cxl_acpi_ids[] = {
@@ -536,7 +583,20 @@ static struct platform_driver cxl_acpi_driver = {
 	.id_table = cxl_test_ids,
 };
 
-module_platform_driver(cxl_acpi_driver);
+static int __init cxl_acpi_init(void)
+{
+	return platform_driver_register(&cxl_acpi_driver);
+}
+
+static void __exit cxl_acpi_exit(void)
+{
+	platform_driver_unregister(&cxl_acpi_driver);
+	cxl_bus_drain();
+}
+
+module_init(cxl_acpi_init);
+module_exit(cxl_acpi_exit);
 MODULE_LICENSE("GPL v2");
 MODULE_IMPORT_NS(CXL);
 MODULE_IMPORT_NS(ACPI);
+MODULE_SOFTDEP("pre: cxl_pmem");
