@@ -7,6 +7,7 @@
 
 #include <linux/module.h>
 #include <linux/init.h>
+#include <linux/intel_tcc.h>
 #include <linux/err.h>
 #include <linux/param.h>
 #include <linux/device.h>
@@ -48,7 +49,6 @@ MODULE_PARM_DESC(notify_delay_ms,
 struct zone_device {
 	int				cpu;
 	bool				work_scheduled;
-	u32				tj_max;
 	u32				msr_pkg_therm_low;
 	u32				msr_pkg_therm_high;
 	struct delayed_work		work;
@@ -104,38 +104,18 @@ static struct zone_device *pkg_temp_thermal_get_dev(unsigned int cpu)
 	return NULL;
 }
 
-/*
-* tj-max is interesting because threshold is set relative to this
-* temperature.
-*/
-static int get_tj_max(int cpu, u32 *tj_max)
-{
-	u32 eax, edx, val;
-	int err;
-
-	err = rdmsr_safe_on_cpu(cpu, MSR_IA32_TEMPERATURE_TARGET, &eax, &edx);
-	if (err)
-		return err;
-
-	val = (eax >> 16) & 0xff;
-	*tj_max = val * 1000;
-
-	return val ? 0 : -EINVAL;
-}
-
 static int sys_get_curr_temp(struct thermal_zone_device *tzd, int *temp)
 {
 	struct zone_device *zonedev = tzd->devdata;
-	u32 eax, edx;
+	int val;
 
-	rdmsr_on_cpu(zonedev->cpu, MSR_IA32_PACKAGE_THERM_STATUS,
-			&eax, &edx);
-	if (eax & 0x80000000) {
-		*temp = zonedev->tj_max - ((eax >> 16) & 0x7f) * 1000;
-		pr_debug("sys_get_curr_temp %d\n", *temp);
-		return 0;
-	}
-	return -EINVAL;
+	val = intel_tcc_get_temp(zonedev->cpu, true);
+	if (val < 0)
+		return val;
+
+	*temp = val * 1000;
+	pr_debug("sys_get_curr_temp %d\n", *temp);
+	return 0;
 }
 
 static int sys_get_trip_temp(struct thermal_zone_device *tzd,
@@ -144,7 +124,7 @@ static int sys_get_trip_temp(struct thermal_zone_device *tzd,
 	struct zone_device *zonedev = tzd->devdata;
 	unsigned long thres_reg_value;
 	u32 mask, shift, eax, edx;
-	int ret;
+	int tj_max, ret;
 
 	if (trip >= MAX_NUMBER_OF_TRIPS)
 		return -EINVAL;
@@ -157,6 +137,11 @@ static int sys_get_trip_temp(struct thermal_zone_device *tzd,
 		shift = THERM_SHIFT_THRESHOLD0;
 	}
 
+	tj_max = intel_tcc_get_tjmax(zonedev->cpu);
+	if (tj_max < 0)
+		return tj_max;
+	tj_max *= 1000;
+
 	ret = rdmsr_on_cpu(zonedev->cpu, MSR_IA32_PACKAGE_THERM_INTERRUPT,
 			   &eax, &edx);
 	if (ret < 0)
@@ -164,7 +149,7 @@ static int sys_get_trip_temp(struct thermal_zone_device *tzd,
 
 	thres_reg_value = (eax & mask) >> shift;
 	if (thres_reg_value)
-		*temp = zonedev->tj_max - thres_reg_value * 1000;
+		*temp = tj_max - thres_reg_value * 1000;
 	else
 		*temp = THERMAL_TEMP_INVALID;
 	pr_debug("sys_get_trip_temp %d\n", *temp);
@@ -177,9 +162,14 @@ sys_set_trip_temp(struct thermal_zone_device *tzd, int trip, int temp)
 {
 	struct zone_device *zonedev = tzd->devdata;
 	u32 l, h, mask, shift, intr;
-	int ret;
+	int tj_max, ret;
 
-	if (trip >= MAX_NUMBER_OF_TRIPS || temp >= zonedev->tj_max)
+	tj_max = intel_tcc_get_tjmax(zonedev->cpu);
+	if (tj_max < 0)
+		return tj_max;
+	tj_max *= 1000;
+
+	if (trip >= MAX_NUMBER_OF_TRIPS || temp >= tj_max)
 		return -EINVAL;
 
 	ret = rdmsr_on_cpu(zonedev->cpu, MSR_IA32_PACKAGE_THERM_INTERRUPT,
@@ -204,7 +194,7 @@ sys_set_trip_temp(struct thermal_zone_device *tzd, int trip, int temp)
 	if (!temp) {
 		l &= ~intr;
 	} else {
-		l |= (zonedev->tj_max - temp)/1000 << shift;
+		l |= (tj_max - temp)/1000 << shift;
 		l |= intr;
 	}
 
@@ -326,7 +316,7 @@ static int pkg_thermal_notify(u64 msr_val)
 static int pkg_temp_thermal_device_add(unsigned int cpu)
 {
 	int id = topology_logical_die_id(cpu);
-	u32 tj_max, eax, ebx, ecx, edx;
+	u32 eax, ebx, ecx, edx;
 	struct zone_device *zonedev;
 	int thres_count, err;
 
@@ -340,8 +330,8 @@ static int pkg_temp_thermal_device_add(unsigned int cpu)
 
 	thres_count = clamp_val(thres_count, 0, MAX_NUMBER_OF_TRIPS);
 
-	err = get_tj_max(cpu, &tj_max);
-	if (err)
+	err = intel_tcc_get_tjmax(cpu);
+	if (err < 0)
 		return err;
 
 	zonedev = kzalloc(sizeof(*zonedev), GFP_KERNEL);
@@ -350,7 +340,6 @@ static int pkg_temp_thermal_device_add(unsigned int cpu)
 
 	INIT_DELAYED_WORK(&zonedev->work, pkg_temp_thermal_threshold_work_fn);
 	zonedev->cpu = cpu;
-	zonedev->tj_max = tj_max;
 	zonedev->tzone = thermal_zone_device_register("x86_pkg_temp",
 			thres_count,
 			(thres_count == MAX_NUMBER_OF_TRIPS) ? 0x03 : 0x01,
@@ -531,6 +520,7 @@ static void __exit pkg_temp_thermal_exit(void)
 }
 module_exit(pkg_temp_thermal_exit)
 
+MODULE_IMPORT_NS(INTEL_TCC);
 MODULE_DESCRIPTION("X86 PKG TEMP Thermal Driver");
 MODULE_AUTHOR("Srinivas Pandruvada <srinivas.pandruvada@linux.intel.com>");
 MODULE_LICENSE("GPL v2");
