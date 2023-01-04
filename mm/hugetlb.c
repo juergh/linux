@@ -5030,6 +5030,9 @@ again:
 				entry = huge_pte_clear_uffd_wp(entry);
 			set_huge_pte_at(dst, addr, dst_pte, entry);
 		} else if (unlikely(is_pte_marker(entry))) {
+			/* No swap on hugetlb */
+			WARN_ON_ONCE(
+			    is_swapin_error_entry(pte_to_swp_entry(entry)));
 			/*
 			 * We copy the pte marker only if the dst vma has
 			 * uffd-wp enabled.
@@ -6658,16 +6661,13 @@ unsigned long hugetlb_change_protection(struct vm_area_struct *vma,
 		}
 		pte = huge_ptep_get(ptep);
 		if (unlikely(is_hugetlb_entry_hwpoisoned(pte))) {
-			spin_unlock(ptl);
-			continue;
-		}
-		if (unlikely(is_hugetlb_entry_migration(pte))) {
+			/* Nothing to do. */
+		} else if (unlikely(is_hugetlb_entry_migration(pte))) {
 			swp_entry_t entry = pte_to_swp_entry(pte);
 			struct page *page = pfn_swap_entry_to_page(entry);
+			pte_t newpte = pte;
 
-			if (!is_readable_migration_entry(entry)) {
-				pte_t newpte;
-
+			if (is_writable_migration_entry(entry)) {
 				if (PageAnon(page))
 					entry = make_readable_exclusive_migration_entry(
 								swp_offset(entry));
@@ -6675,25 +6675,22 @@ unsigned long hugetlb_change_protection(struct vm_area_struct *vma,
 					entry = make_readable_migration_entry(
 								swp_offset(entry));
 				newpte = swp_entry_to_pte(entry);
-				if (uffd_wp)
-					newpte = pte_swp_mkuffd_wp(newpte);
-				else if (uffd_wp_resolve)
-					newpte = pte_swp_clear_uffd_wp(newpte);
-				set_huge_pte_at(mm, address, ptep, newpte);
 				pages++;
 			}
-			spin_unlock(ptl);
-			continue;
-		}
-		if (unlikely(pte_marker_uffd_wp(pte))) {
-			/*
-			 * This is changing a non-present pte into a none pte,
-			 * no need for huge_ptep_modify_prot_start/commit().
-			 */
+
+			if (uffd_wp)
+				newpte = pte_swp_mkuffd_wp(newpte);
+			else if (uffd_wp_resolve)
+				newpte = pte_swp_clear_uffd_wp(newpte);
+			if (!pte_same(pte, newpte))
+				set_huge_pte_at(mm, address, ptep, newpte);
+		} else if (unlikely(is_pte_marker(pte))) {
+			/* No other markers apply for now. */
+			WARN_ON_ONCE(!pte_marker_uffd_wp(pte));
 			if (uffd_wp_resolve)
+				/* Safe to modify directly (non-present->none). */
 				huge_pte_clear(mm, address, ptep, psize);
-		}
-		if (!huge_pte_none(pte)) {
+		} else if (!huge_pte_none(pte)) {
 			pte_t old_pte;
 			unsigned int shift = huge_page_shift(hstate_vma(vma));
 
