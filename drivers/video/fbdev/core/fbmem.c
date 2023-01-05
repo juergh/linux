@@ -1183,6 +1183,7 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		console_unlock();
 		break;
 	default:
+		console_lock();
 		lock_fb_info(info);
 		fb = info->fbops;
 		if (fb->fb_ioctl)
@@ -1190,6 +1191,7 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		else
 			ret = -ENOTTY;
 		unlock_fb_info(info);
+		console_unlock();
 	}
 	return ret;
 }
