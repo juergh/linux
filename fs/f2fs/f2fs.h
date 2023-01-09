@@ -853,6 +853,7 @@ struct f2fs_inode_info {
 	struct extent_tree *extent_tree[NR_EXTENT_CACHES];
 					/* cached extent_tree entry */
 	struct inode *cow_inode;	/* copy-on-write inode for atomic write */
+	struct f2fs_rwsem i_atomic_sem;	/* protect atomic write context */
 
 	/* avoid racing between foreground op and gc */
 	struct f2fs_rwsem i_gc_rwsem[2];

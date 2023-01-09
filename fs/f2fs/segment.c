@@ -189,8 +189,10 @@ void f2fs_abort_atomic_write(struct inode *inode, bool clean)
 {
 	struct f2fs_inode_info *fi = F2FS_I(inode);
 
+	f2fs_down_write(&fi->i_atomic_sem);
+
 	if (!f2fs_is_atomic_file(inode))
-		return;
+		goto out_unlock;
 
 	clear_inode_flag(fi->cow_inode, FI_COW_FILE);
 	iput(fi->cow_inode);
@@ -208,6 +210,8 @@ void f2fs_abort_atomic_write(struct inode *inode, bool clean)
 		f2fs_i_size_write(inode, fi->original_i_size);
 		fi->original_i_size = 0;
 	}
+out_unlock:
+	f2fs_up_write(&fi->i_atomic_sem);
 }
 
 static int __replace_atomic_write_block(struct inode *inode, pgoff_t index,
