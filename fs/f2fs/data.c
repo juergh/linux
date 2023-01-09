@@ -2637,13 +2637,24 @@ int f2fs_do_write_data_page(struct f2fs_io_info *fio)
 	struct dnode_of_data dn;
 	struct node_info ni;
 	bool ipu_force = false;
+	bool atomic_locked = false;
 	int err = 0;
 
 	/* Use COW inode to make dnode_of_data for atomic write */
-	if (f2fs_is_atomic_file(inode))
+	if (f2fs_is_atomic_file(inode)) {
+		f2fs_down_write(&F2FS_I(inode)->i_atomic_sem);
+		atomic_locked = true;
+
+		if (!f2fs_is_atomic_file(inode)) {
+			/* atomic write is aborted */
+			err = -ENOENT;
+			goto out_err;
+		}
+
 		set_new_dnode(&dn, F2FS_I(inode)->cow_inode, NULL, NULL, 0);
-	else
+	} else {
 		set_new_dnode(&dn, inode, NULL, NULL, 0);
+	}
 
 	if (need_inplace_update(fio) &&
 	    f2fs_lookup_read_extent_cache_block(inode, page->index,
@@ -2652,7 +2663,8 @@ int f2fs_do_write_data_page(struct f2fs_io_info *fio)
 						DATA_GENERIC_ENHANCE)) {
 			f2fs_handle_error(fio->sbi,
 						ERROR_INVALID_BLKADDR);
-			return -EFSCORRUPTED;
+			err = -EFSCORRUPTED;
+			goto out_err;
 		}
 
 		ipu_force = true;
@@ -2661,8 +2673,10 @@ int f2fs_do_write_data_page(struct f2fs_io_info *fio)
 	}
 
 	/* Deadlock due to between page->lock and f2fs_lock_op */
-	if (fio->need_lock == LOCK_REQ && !f2fs_trylock_op(fio->sbi))
-		return -EAGAIN;
+	if (fio->need_lock == LOCK_REQ && !f2fs_trylock_op(fio->sbi)) {
+		err = -EAGAIN;
+		goto out_err;
+	}
 
 	err = f2fs_get_dnode_of_data(&dn, page->index, LOOKUP_NODE);
 	if (err)
@@ -2710,6 +2724,9 @@ got_it:
 			set_inode_flag(inode, FI_UPDATE_WRITE);
 		}
 		trace_f2fs_do_write_data_page(fio->page, IPU);
+
+		if (atomic_locked)
+			f2fs_up_write(&F2FS_I(inode)->i_atomic_sem);
 		return err;
 	}
 
@@ -2747,6 +2764,9 @@ out_writepage:
 out:
 	if (fio->need_lock == LOCK_REQ)
 		f2fs_unlock_op(fio->sbi);
+out_err:
+	if (atomic_locked)
+		f2fs_up_write(&F2FS_I(inode)->i_atomic_sem);
 	return err;
 }
 
