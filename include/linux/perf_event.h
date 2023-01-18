@@ -95,6 +95,11 @@ struct perf_raw_record {
 	u32				size;
 };
 
+static __always_inline bool perf_raw_frag_last(const struct perf_raw_frag *frag)
+{
+	return frag->pad < sizeof(u64);
+}
+
 /*
  * branch stack layout:
  *  nr: number of taken branches stored in entries[]
@@ -1095,6 +1100,33 @@ int perf_event_read_local(struct perf_event *event, u64 *value,
 extern u64 perf_event_read_value(struct perf_event *event,
 				 u64 *enabled, u64 *running);
 
+extern struct perf_callchain_entry *perf_callchain(struct perf_event *event, struct pt_regs *regs);
+
+static inline bool branch_sample_no_flags(const struct perf_event *event)
+{
+	return event->attr.branch_sample_type & PERF_SAMPLE_BRANCH_NO_FLAGS;
+}
+
+static inline bool branch_sample_no_cycles(const struct perf_event *event)
+{
+	return event->attr.branch_sample_type & PERF_SAMPLE_BRANCH_NO_CYCLES;
+}
+
+static inline bool branch_sample_type(const struct perf_event *event)
+{
+	return event->attr.branch_sample_type & PERF_SAMPLE_BRANCH_TYPE_SAVE;
+}
+
+static inline bool branch_sample_hw_index(const struct perf_event *event)
+{
+	return event->attr.branch_sample_type & PERF_SAMPLE_BRANCH_HW_INDEX;
+}
+
+static inline bool branch_sample_priv(const struct perf_event *event)
+{
+	return event->attr.branch_sample_type & PERF_SAMPLE_BRANCH_PRIV_SAVE;
+}
+
 
 struct perf_sample_data {
 	/*
@@ -1103,6 +1135,7 @@ struct perf_sample_data {
 	 */
 	u64				sample_flags;
 	u64				period;
+	u64				dyn_size;
 
 	/*
 	 * Fields commonly set by __perf_event_header__init_id(),
@@ -1158,11 +1191,74 @@ static inline void perf_sample_data_init(struct perf_sample_data *data,
 	/* remaining struct members initialized in perf_prepare_sample() */
 	data->sample_flags = PERF_SAMPLE_PERIOD;
 	data->period = period;
+	data->dyn_size = 0;
 
 	if (addr) {
 		data->addr = addr;
 		data->sample_flags |= PERF_SAMPLE_ADDR;
 	}
+}
+
+static inline void perf_sample_save_callchain(struct perf_sample_data *data,
+					      struct perf_event *event,
+					      struct pt_regs *regs)
+{
+	int size = 1;
+
+	data->callchain = perf_callchain(event, regs);
+	size += data->callchain->nr;
+
+	data->dyn_size += size * sizeof(u64);
+	data->sample_flags |= PERF_SAMPLE_CALLCHAIN;
+}
+
+static inline void perf_sample_save_raw_data(struct perf_sample_data *data,
+					     struct perf_raw_record *raw)
+{
+	struct perf_raw_frag *frag = &raw->frag;
+	u32 sum = 0;
+	int size;
+
+	do {
+		sum += frag->size;
+		if (perf_raw_frag_last(frag))
+			break;
+		frag = frag->next;
+	} while (1);
+
+	size = round_up(sum + sizeof(u32), sizeof(u64));
+	raw->size = size - sizeof(u32);
+	frag->pad = raw->size - sum;
+
+	data->raw = raw;
+	data->dyn_size += size;
+	data->sample_flags |= PERF_SAMPLE_RAW;
+}
+
+static inline void perf_sample_save_brstack(struct perf_sample_data *data,
+					    struct perf_event *event,
+					    struct perf_branch_stack *brs)
+{
+	int size = sizeof(u64); /* nr */
+
+	if (branch_sample_hw_index(event))
+		size += sizeof(u64);
+	size += brs->nr * sizeof(struct perf_branch_entry);
+
+	data->br_stack = brs;
+	data->dyn_size += size;
+	data->sample_flags |= PERF_SAMPLE_BRANCH_STACK;
+}
+
+static inline u32 perf_sample_data_size(struct perf_sample_data *data,
+					struct perf_event *event)
+{
+	u32 size = sizeof(struct perf_event_header);
+
+	size += event->header_size + event->id_header_size;
+	size += data->dyn_size;
+
+	return size;
 }
 
 /*
@@ -1186,7 +1282,10 @@ extern void perf_output_sample(struct perf_output_handle *handle,
 			       struct perf_event_header *header,
 			       struct perf_sample_data *data,
 			       struct perf_event *event);
-extern void perf_prepare_sample(struct perf_event_header *header,
+extern void perf_prepare_sample(struct perf_sample_data *data,
+				struct perf_event *event,
+				struct pt_regs *regs);
+extern void perf_prepare_header(struct perf_event_header *header,
 				struct perf_sample_data *data,
 				struct perf_event *event,
 				struct pt_regs *regs);
@@ -1406,7 +1505,6 @@ extern void perf_callchain_kernel(struct perf_callchain_entry_ctx *entry, struct
 extern struct perf_callchain_entry *
 get_perf_callchain(struct pt_regs *regs, u32 init_nr, bool kernel, bool user,
 		   u32 max_stack, bool crosstask, bool add_mark);
-extern struct perf_callchain_entry *perf_callchain(struct perf_event *event, struct pt_regs *regs);
 extern int get_callchain_buffers(int max_stack);
 extern void put_callchain_buffers(void);
 extern struct perf_callchain_entry *get_callchain_entry(int *rctx);
@@ -1674,11 +1772,6 @@ extern void perf_restore_debug_store(void);
 static inline void perf_restore_debug_store(void)			{ }
 #endif
 
-static __always_inline bool perf_raw_frag_last(const struct perf_raw_frag *frag)
-{
-	return frag->pad < sizeof(u64);
-}
-
 #define perf_output_put(handle, x) perf_output_copy((handle), &(x), sizeof(x))
 
 struct perf_pmu_events_attr {
@@ -1788,30 +1881,4 @@ static inline void perf_lopwr_cb(bool mode)
 }
 #endif
 
-#ifdef CONFIG_PERF_EVENTS
-static inline bool branch_sample_no_flags(const struct perf_event *event)
-{
-	return event->attr.branch_sample_type & PERF_SAMPLE_BRANCH_NO_FLAGS;
-}
-
-static inline bool branch_sample_no_cycles(const struct perf_event *event)
-{
-	return event->attr.branch_sample_type & PERF_SAMPLE_BRANCH_NO_CYCLES;
-}
-
-static inline bool branch_sample_type(const struct perf_event *event)
-{
-	return event->attr.branch_sample_type & PERF_SAMPLE_BRANCH_TYPE_SAVE;
-}
-
-static inline bool branch_sample_hw_index(const struct perf_event *event)
-{
-	return event->attr.branch_sample_type & PERF_SAMPLE_BRANCH_HW_INDEX;
-}
-
-static inline bool branch_sample_priv(const struct perf_event *event)
-{
-	return event->attr.branch_sample_type & PERF_SAMPLE_BRANCH_PRIV_SAVE;
-}
-#endif /* CONFIG_PERF_EVENTS */
 #endif /* _LINUX_PERF_EVENT_H */
