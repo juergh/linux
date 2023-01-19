@@ -1252,6 +1252,21 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	prev_beacon_int = link_conf->beacon_int;
 	link_conf->beacon_int = params->beacon_interval;
 
+	if (params->vht_cap) {
+		link_conf->vht_su_beamformer =
+			params->vht_cap->vht_cap_info &
+				cpu_to_le32(IEEE80211_VHT_CAP_SU_BEAMFORMER_CAPABLE);
+		link_conf->vht_su_beamformee =
+			params->vht_cap->vht_cap_info &
+				cpu_to_le32(IEEE80211_VHT_CAP_SU_BEAMFORMEE_CAPABLE);
+		link_conf->vht_mu_beamformer =
+			params->vht_cap->vht_cap_info &
+				cpu_to_le32(IEEE80211_VHT_CAP_MU_BEAMFORMER_CAPABLE);
+		link_conf->vht_mu_beamformee =
+			params->vht_cap->vht_cap_info &
+				cpu_to_le32(IEEE80211_VHT_CAP_MU_BEAMFORMEE_CAPABLE);
+	}
+
 	if (params->he_cap && params->he_oper) {
 		link_conf->he_support = true;
 		link_conf->htc_trig_based_pkt_ext =
@@ -1264,6 +1279,21 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 
 		if (params->beacon.he_bss_color.enabled)
 			changed |= BSS_CHANGED_HE_BSS_COLOR;
+	}
+
+	if (params->he_cap) {
+		link_conf->he_su_beamformer =
+			params->he_cap->phy_cap_info[3] &
+				IEEE80211_HE_PHY_CAP3_SU_BEAMFORMER;
+		link_conf->he_su_beamformee =
+			params->he_cap->phy_cap_info[4] &
+				IEEE80211_HE_PHY_CAP4_SU_BEAMFORMEE;
+		link_conf->he_mu_beamformer =
+			params->he_cap->phy_cap_info[4] &
+				IEEE80211_HE_PHY_CAP4_MU_BEAMFORMER;
+		link_conf->he_full_ul_mumimo =
+			params->he_cap->phy_cap_info[2] &
+				IEEE80211_HE_PHY_CAP2_UL_MU_FULL_MU_MIMO;
 	}
 
 	if (sdata->vif.type == NL80211_IFTYPE_AP &&
@@ -2734,7 +2764,7 @@ static int ieee80211_scan(struct wiphy *wiphy,
 		 * If the scan has been forced (and the driver supports
 		 * forcing), don't care about being beaconing already.
 		 * This will create problems to the attached stations (e.g. all
-		 * the  frames sent while scanning on other channel will be
+		 * the frames sent while scanning on other channel will be
 		 * lost)
 		 */
 		if (sdata->deflink.u.ap.beacon &&
