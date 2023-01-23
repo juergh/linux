@@ -1166,7 +1166,7 @@ static unsigned int handle_tw_list(struct llist_node *node,
 {
 	unsigned int count = 0;
 
-	while (node != last) {
+	while (node && node != last) {
 		struct llist_node *next = node->next;
 		struct io_kiocb *req = container_of(node, struct io_kiocb,
 						    io_task_work.node);
@@ -1226,7 +1226,7 @@ void tctx_task_work(struct callback_head *cb)
 						  task_work);
 	struct llist_node fake = {};
 	struct llist_node *node;
-	unsigned int loops = 1;
+	unsigned int loops = 0;
 	unsigned int count;
 
 	if (unlikely(current->flags & PF_EXITING)) {
@@ -1234,15 +1234,12 @@ void tctx_task_work(struct callback_head *cb)
 		return;
 	}
 
-	node = io_llist_xchg(&tctx->task_list, &fake);
-	count = handle_tw_list(node, &ctx, &uring_locked, NULL);
-	node = io_llist_cmpxchg(&tctx->task_list, &fake, NULL);
-	while (node != &fake) {
+	do {
 		loops++;
 		node = io_llist_xchg(&tctx->task_list, &fake);
 		count += handle_tw_list(node, &ctx, &uring_locked, &fake);
 		node = io_llist_cmpxchg(&tctx->task_list, &fake, NULL);
-	}
+	} while (node != &fake);
 
 	ctx_flush_and_put(ctx, &uring_locked);
 
