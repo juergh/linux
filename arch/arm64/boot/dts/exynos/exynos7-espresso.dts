@@ -61,7 +61,6 @@
 
 &gpu {
 	mali-supply = <&buck6_reg>;
-	status = "okay";
 };
 
 &serial_2 {
@@ -79,12 +78,11 @@
 };
 
 &adc {
+	vdd-supply = <&ldo3_reg>;
 	status = "okay";
 };
 
 &hsi2c_4 {
-	samsung,i2c-sda-delay = <100>;
-	samsung,i2c-max-bus-freq = <200000>;
 	status = "okay";
 
 	pmic@66 {
