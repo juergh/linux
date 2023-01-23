@@ -666,7 +666,6 @@ static void io_cqring_overflow_kill(struct io_ring_ctx *ctx)
 	}
 }
 
-/* Returns true if there are no backlogged entries after the flush */
 static void __io_cqring_overflow_flush(struct io_ring_ctx *ctx)
 {
 	size_t cqe_size = sizeof(struct io_uring_cqe);
@@ -714,7 +713,8 @@ static void io_cqring_overflow_flush(struct io_ring_ctx *ctx)
 		io_cqring_do_overflow_flush(ctx);
 }
 
-static void __io_put_task(struct task_struct *task, int nr)
+/* can be called by any task */
+static void io_put_task_remote(struct task_struct *task, int nr)
 {
 	struct io_uring_task *tctx = task->io_uring;
 
@@ -724,13 +724,19 @@ static void __io_put_task(struct task_struct *task, int nr)
 	put_task_struct_many(task, nr);
 }
 
+/* used by a task to put its own references */
+static void io_put_task_local(struct task_struct *task, int nr)
+{
+	task->io_uring->cached_refs += nr;
+}
+
 /* must to be called somewhat shortly after putting a request */
 static inline void io_put_task(struct task_struct *task, int nr)
 {
 	if (likely(task == current))
-		task->io_uring->cached_refs += nr;
+		io_put_task_local(task, nr);
 	else
-		__io_put_task(task, nr);
+		io_put_task_remote(task, nr);
 }
 
 void io_task_refs_refill(struct io_uring_task *tctx)
@@ -983,7 +989,7 @@ static void __io_req_complete_post(struct io_kiocb *req)
 		 * we don't hold ->completion_lock. Clean them here to avoid
 		 * deadlocks.
 		 */
-		io_put_task(req->task, 1);
+		io_put_task_remote(req->task, 1);
 		wq_list_add_head(&req->comp_list, &ctx->locked_free_list);
 		ctx->locked_free_nr++;
 	}
@@ -1106,7 +1112,7 @@ __cold void io_free_req(struct io_kiocb *req)
 
 	io_req_put_rsrc(req);
 	io_dismantle_req(req);
-	io_put_task(req->task, 1);
+	io_put_task_remote(req->task, 1);
 
 	spin_lock(&ctx->completion_lock);
 	wq_list_add_head(&req->comp_list, &ctx->locked_free_list);
@@ -1160,7 +1166,7 @@ static unsigned int handle_tw_list(struct llist_node *node,
 {
 	unsigned int count = 0;
 
-	while (node != last) {
+	while (node && node != last) {
 		struct llist_node *next = node->next;
 		struct io_kiocb *req = container_of(node, struct io_kiocb,
 						    io_task_work.node);
@@ -1220,7 +1226,7 @@ void tctx_task_work(struct callback_head *cb)
 						  task_work);
 	struct llist_node fake = {};
 	struct llist_node *node;
-	unsigned int loops = 1;
+	unsigned int loops = 0;
 	unsigned int count;
 
 	if (unlikely(current->flags & PF_EXITING)) {
@@ -1228,15 +1234,21 @@ void tctx_task_work(struct callback_head *cb)
 		return;
 	}
 
-	node = io_llist_xchg(&tctx->task_list, &fake);
-	count = handle_tw_list(node, &ctx, &uring_locked, NULL);
-	node = io_llist_cmpxchg(&tctx->task_list, &fake, NULL);
-	while (node != &fake) {
+	do {
 		loops++;
 		node = io_llist_xchg(&tctx->task_list, &fake);
 		count += handle_tw_list(node, &ctx, &uring_locked, &fake);
+
+		/* skip expensive cmpxchg if there are items in the list */
+		if (READ_ONCE(tctx->task_list.first) != &fake)
+			continue;
+		if (uring_locked && !wq_list_empty(&ctx->submit_state.compl_reqs)) {
+			io_submit_flush_completions(ctx);
+			if (READ_ONCE(tctx->task_list.first) != &fake)
+				continue;
+		}
 		node = io_llist_cmpxchg(&tctx->task_list, &fake, NULL);
-	}
+	} while (node != &fake);
 
 	ctx_flush_and_put(ctx, &uring_locked);
 
@@ -2371,7 +2383,7 @@ static void io_commit_sqring(struct io_ring_ctx *ctx)
  * used, it's important that those reads are done through READ_ONCE() to
  * prevent a re-load down the line.
  */
-static const struct io_uring_sqe *io_get_sqe(struct io_ring_ctx *ctx)
+static const bool io_get_sqe(struct io_ring_ctx *ctx, const struct io_uring_sqe **sqe)
 {
 	unsigned head, mask = ctx->sq_entries - 1;
 	unsigned sq_idx = ctx->cached_sq_head++ & mask;
@@ -2389,14 +2401,15 @@ static const struct io_uring_sqe *io_get_sqe(struct io_ring_ctx *ctx)
 		/* double index for 128-byte SQEs, twice as long */
 		if (ctx->flags & IORING_SETUP_SQE128)
 			head <<= 1;
-		return &ctx->sq_sqes[head];
+		*sqe = &ctx->sq_sqes[head];
+		return true;
 	}
 
 	/* drop invalid entries */
 	ctx->cq_extra--;
 	WRITE_ONCE(ctx->rings->sq_dropped,
 		   READ_ONCE(ctx->rings->sq_dropped) + 1);
-	return NULL;
+	return false;
 }
 
 int io_submit_sqes(struct io_ring_ctx *ctx, unsigned int nr)
@@ -2417,11 +2430,9 @@ int io_submit_sqes(struct io_ring_ctx *ctx, unsigned int nr)
 		const struct io_uring_sqe *sqe;
 		struct io_kiocb *req;
 
-		if (unlikely(!io_alloc_req_refill(ctx)))
+		if (unlikely(!io_alloc_req(ctx, &req)))
 			break;
-		req = io_alloc_req(ctx);
-		sqe = io_get_sqe(ctx);
-		if (unlikely(!sqe)) {
+		if (unlikely(!io_get_sqe(ctx, &sqe))) {
 			io_req_add_to_cache(req, ctx);
 			break;
 		}
@@ -2739,14 +2750,14 @@ static int io_eventfd_unregister(struct io_ring_ctx *ctx)
 
 static void io_req_caches_free(struct io_ring_ctx *ctx)
 {
+	struct io_kiocb *req;
 	int nr = 0;
 
 	mutex_lock(&ctx->uring_lock);
 	io_flush_cached_locked_reqs(ctx, &ctx->submit_state);
 
 	while (!io_req_cache_empty(ctx)) {
-		struct io_kiocb *req = io_alloc_req(ctx);
-
+		req = io_extract_req(ctx);
 		kmem_cache_free(req_cachep, req);
 		nr++;
 	}
@@ -2888,7 +2899,7 @@ static __poll_t io_uring_poll(struct file *file, poll_table *wait)
 	 * pushes them to do the flush.
 	 */
 
-	if (io_cqring_events(ctx) || io_has_work(ctx))
+	if (__io_cqring_events_user(ctx) || io_has_work(ctx))
 		mask |= EPOLLIN | EPOLLRDNORM;
 
 	return mask;
