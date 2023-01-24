@@ -1,0 +1,23 @@
+arm/soc
+	omap/omap2-cleanup
+		https://git.kernel.org/pub/scm/linux/kernel/git/soc/soc omap/omap2-cleanup
+
+arm/dt
+	renesas/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/geert/renesas-devel tags/renesas-dts-for-v6.3-tag1
+	at91/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/at91/linux tags/at91-dt-6.3
+	dt/cleanup-dt64
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux-dt tags/dt64-cleanup-6.3
+	samsung/dt
+		https://git.kernel.org/pub/scm/linux/kernel/git/krzk/linux tags/samsung-dt64-6.3
+	omap/dt
+		git://git.kernel.org/pub/scm/linux/kernel/git/tmlind/linux-omap tags/omap-for-v6.3/dt-signed
+
+soc/defconfig
+	patch
+		ARM: multi_v7_defconfig: Enable wm896x audio CODECs
+		ARM: multi_v5_defconfig: Enable I2C_GPIO
+	renesas/defconfig
+		git://git.kernel.org/pub/scm/linux/kernel/git/geert/renesas-devel tags/renesas-arm-defconfig-for-v6.3-tag1
+
