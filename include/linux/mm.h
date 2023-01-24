@@ -670,16 +670,16 @@ static inline bool vma_is_accessible(struct vm_area_struct *vma)
 static inline
 struct vm_area_struct *vma_find(struct vma_iterator *vmi, unsigned long max)
 {
-	return mas_find(&vmi->mas, max);
+	return mas_find(&vmi->mas, max - 1);
 }
 
 static inline struct vm_area_struct *vma_next(struct vma_iterator *vmi)
 {
 	/*
-	 * Uses vma_find() to get the first VMA when the iterator starts.
+	 * Uses mas_find() to get the first VMA when the iterator starts.
 	 * Calling mas_next() could skip the first entry.
 	 */
-	return vma_find(vmi, ULONG_MAX);
+	return mas_find(&vmi->mas, ULONG_MAX);
 }
 
 static inline struct vm_area_struct *vma_prev(struct vma_iterator *vmi)
@@ -692,12 +692,50 @@ static inline unsigned long vma_iter_addr(struct vma_iterator *vmi)
 	return vmi->mas.index;
 }
 
+static inline unsigned long vma_iter_end(struct vma_iterator *vmi)
+{
+	return vmi->mas.last + 1;
+}
+static inline int vma_iter_bulk_alloc(struct vma_iterator *vmi,
+				      unsigned long count)
+{
+	return mas_expected_entries(&vmi->mas, count);
+}
+
+/* Free any unused preallocations */
+static inline void vma_iter_free(struct vma_iterator *vmi)
+{
+	mas_destroy(&vmi->mas);
+}
+
+static inline int vma_iter_bulk_store(struct vma_iterator *vmi,
+				      struct vm_area_struct *vma)
+{
+	vmi->mas.index = vma->vm_start;
+	vmi->mas.last = vma->vm_end - 1;
+	mas_store(&vmi->mas, vma);
+	if (unlikely(mas_is_err(&vmi->mas)))
+		return -ENOMEM;
+
+	return 0;
+}
+
+static inline void vma_iter_invalidate(struct vma_iterator *vmi)
+{
+	mas_pause(&vmi->mas);
+}
+
+static inline void vma_iter_set(struct vma_iterator *vmi, unsigned long addr)
+{
+	mas_set(&vmi->mas, addr);
+}
+
 #define for_each_vma(__vmi, __vma)					\
 	while (((__vma) = vma_next(&(__vmi))) != NULL)
 
 /* The MM code likes to work with exclusive end addresses */
 #define for_each_vma_range(__vmi, __vma, __end)				\
-	while (((__vma) = vma_find(&(__vmi), (__end) - 1)) != NULL)
+	while (((__vma) = vma_find(&(__vmi), (__end))) != NULL)
 
 #ifdef CONFIG_SHMEM
 /*
@@ -719,11 +757,20 @@ int vma_is_stack_for_current(struct vm_area_struct *vma);
 struct mmu_gather;
 struct inode;
 
+/*
+ * compound_order() can be called without holding a reference, which means
+ * that niceties like page_folio() don't work.  These callers should be
+ * prepared to handle wild return values.  For example, PG_head may be
+ * set before _folio_order is initialised, or this may be a tail page.
+ * See compaction.c for some good examples.
+ */
 static inline unsigned int compound_order(struct page *page)
 {
-	if (!PageHead(page))
+	struct folio *folio = (struct folio *)page;
+
+	if (!test_bit(PG_head, &folio->flags))
 		return 0;
-	return page[1].compound_order;
+	return folio->_folio_order;
 }
 
 /**
@@ -831,34 +878,7 @@ static inline int is_vmalloc_or_module_addr(const void *x)
 static inline int folio_entire_mapcount(struct folio *folio)
 {
 	VM_BUG_ON_FOLIO(!folio_test_large(folio), folio);
-	return atomic_read(folio_mapcount_ptr(folio)) + 1;
-}
-
-/*
- * Mapcount of compound page as a whole, does not include mapped sub-pages.
- * Must be called only on head of compound page.
- */
-static inline int head_compound_mapcount(struct page *head)
-{
-	return atomic_read(compound_mapcount_ptr(head)) + 1;
-}
-
-/*
- * If a 16GB hugetlb page were mapped by PTEs of all of its 4kB sub-pages,
- * its subpages_mapcount would be 0x400000: choose the COMPOUND_MAPPED bit
- * above that range, instead of 2*(PMD_SIZE/PAGE_SIZE).  Hugetlb currently
- * leaves subpages_mapcount at 0, but avoid surprise if it participates later.
- */
-#define COMPOUND_MAPPED	0x800000
-#define SUBPAGES_MAPPED	(COMPOUND_MAPPED - 1)
-
-/*
- * Number of sub-pages mapped by PTE, does not include compound mapcount.
- * Must be called only on head of compound page.
- */
-static inline int head_subpages_mapcount(struct page *head)
-{
-	return atomic_read(subpages_mapcount_ptr(head)) & SUBPAGES_MAPPED;
+	return atomic_read(&folio->_entire_mapcount) + 1;
 }
 
 /*
@@ -871,25 +891,29 @@ static inline void page_mapcount_reset(struct page *page)
 	atomic_set(&(page)->_mapcount, -1);
 }
 
-/*
- * Mapcount of 0-order page; when compound sub-page, includes
- * compound_mapcount of compound_head of page.
+/**
+ * page_mapcount() - Number of times this precise page is mapped.
+ * @page: The page.
  *
- * Result is undefined for pages which cannot be mapped into userspace.
+ * The number of times this page is mapped.  If this page is part of
+ * a large folio, it includes the number of times this page is mapped
+ * as part of that folio.
+ *
+ * The result is undefined for pages which cannot be mapped into userspace.
  * For example SLAB or special types of pages. See function page_has_type().
- * They use this place in struct page differently.
+ * They use this field in struct page differently.
  */
 static inline int page_mapcount(struct page *page)
 {
 	int mapcount = atomic_read(&page->_mapcount) + 1;
 
-	if (likely(!PageCompound(page)))
-		return mapcount;
-	page = compound_head(page);
-	return head_compound_mapcount(page) + mapcount;
+	if (unlikely(PageCompound(page)))
+		mapcount += folio_entire_mapcount(page_folio(page));
+
+	return mapcount;
 }
 
-int total_compound_mapcount(struct page *head);
+int folio_total_mapcount(struct folio *folio);
 
 /**
  * folio_mapcount() - Calculate the number of mappings of this folio.
@@ -906,24 +930,24 @@ static inline int folio_mapcount(struct folio *folio)
 {
 	if (likely(!folio_test_large(folio)))
 		return atomic_read(&folio->_mapcount) + 1;
-	return total_compound_mapcount(&folio->page);
+	return folio_total_mapcount(folio);
 }
 
 static inline int total_mapcount(struct page *page)
 {
 	if (likely(!PageCompound(page)))
 		return atomic_read(&page->_mapcount) + 1;
-	return total_compound_mapcount(compound_head(page));
+	return folio_total_mapcount(page_folio(page));
 }
 
 static inline bool folio_large_is_mapped(struct folio *folio)
 {
 	/*
-	 * Reading folio_mapcount_ptr() below could be omitted if hugetlb
-	 * participated in incrementing subpages_mapcount when compound mapped.
+	 * Reading _entire_mapcount below could be omitted if hugetlb
+	 * participated in incrementing nr_pages_mapped when compound mapped.
 	 */
-	return atomic_read(folio_subpages_mapcount_ptr(folio)) > 0 ||
-		atomic_read(folio_mapcount_ptr(folio)) >= 0;
+	return atomic_read(&folio->_nr_pages_mapped) > 0 ||
+		atomic_read(&folio->_entire_mapcount) >= 0;
 }
 
 /**
@@ -998,8 +1022,11 @@ extern compound_page_dtor * const compound_page_dtors[NR_COMPOUND_DTORS];
 static inline void set_compound_page_dtor(struct page *page,
 		enum compound_dtor_id compound_dtor)
 {
+	struct folio *folio = (struct folio *)page;
+
 	VM_BUG_ON_PAGE(compound_dtor >= NR_COMPOUND_DTORS, page);
-	page[1].compound_dtor = compound_dtor;
+	VM_BUG_ON_PAGE(!PageHead(page), page);
+	folio->_folio_dtor = compound_dtor;
 }
 
 static inline void folio_set_compound_dtor(struct folio *folio,
@@ -1011,28 +1038,13 @@ static inline void folio_set_compound_dtor(struct folio *folio,
 
 void destroy_large_folio(struct folio *folio);
 
-static inline int head_compound_pincount(struct page *head)
-{
-	return atomic_read(compound_pincount_ptr(head));
-}
-
 static inline void set_compound_order(struct page *page, unsigned int order)
 {
-	page[1].compound_order = order;
-#ifdef CONFIG_64BIT
-	page[1].compound_nr = 1U << order;
-#endif
-}
+	struct folio *folio = (struct folio *)page;
 
-/* Returns the number of pages in this potentially compound page. */
-static inline unsigned long compound_nr(struct page *page)
-{
-	if (!PageHead(page))
-		return 1;
+	folio->_folio_order = order;
 #ifdef CONFIG_64BIT
-	return page[1].compound_nr;
-#else
-	return 1UL << compound_order(page);
+	folio->_folio_nr_pages = 1U << order;
 #endif
 }
 
@@ -1056,16 +1068,6 @@ static inline unsigned int thp_order(struct page *page)
 {
 	VM_BUG_ON_PGFLAGS(PageTail(page), page);
 	return compound_order(page);
-}
-
-/**
- * thp_nr_pages - The number of regular pages in this huge page.
- * @page: The head page of a huge page.
- */
-static inline int thp_nr_pages(struct page *page)
-{
-	VM_BUG_ON_PGFLAGS(PageTail(page), page);
-	return compound_nr(page);
 }
 
 /**
@@ -1641,11 +1643,6 @@ static inline struct folio *pfn_folio(unsigned long pfn)
 	return page_folio(pfn_to_page(pfn));
 }
 
-static inline atomic_t *folio_pincount_ptr(struct folio *folio)
-{
-	return &folio_page(folio, 1)->compound_pincount;
-}
-
 /**
  * folio_maybe_dma_pinned - Report if a folio may be pinned for DMA.
  * @folio: The folio.
@@ -1663,7 +1660,7 @@ static inline atomic_t *folio_pincount_ptr(struct folio *folio)
  * expected to be able to deal gracefully with a false positive.
  *
  * For large folios, the result will be exactly correct. That's because
- * we have more tracking data available: the compound_pincount is used
+ * we have more tracking data available: the _pincount field is used
  * instead of the GUP_PIN_COUNTING_BIAS scheme.
  *
  * For more information, please see Documentation/core-api/pin_user_pages.rst.
@@ -1674,7 +1671,7 @@ static inline atomic_t *folio_pincount_ptr(struct folio *folio)
 static inline bool folio_maybe_dma_pinned(struct folio *folio)
 {
 	if (folio_test_large(folio))
-		return atomic_read(folio_pincount_ptr(folio)) > 0;
+		return atomic_read(&folio->_pincount) > 0;
 
 	/*
 	 * folio_ref_count() is signed. If that refcount overflows, then
@@ -1780,6 +1777,33 @@ static inline long folio_nr_pages(struct folio *folio)
 #else
 	return 1L << folio->_folio_order;
 #endif
+}
+
+/*
+ * compound_nr() returns the number of pages in this potentially compound
+ * page.  compound_nr() can be called on a tail page, and is defined to
+ * return 1 in that case.
+ */
+static inline unsigned long compound_nr(struct page *page)
+{
+	struct folio *folio = (struct folio *)page;
+
+	if (!test_bit(PG_head, &folio->flags))
+		return 1;
+#ifdef CONFIG_64BIT
+	return folio->_folio_nr_pages;
+#else
+	return 1L << folio->_folio_order;
+#endif
+}
+
+/**
+ * thp_nr_pages - The number of regular pages in this huge page.
+ * @page: The head page of a huge page.
+ */
+static inline int thp_nr_pages(struct page *page)
+{
+	return folio_nr_pages((struct folio *)page);
 }
 
 /**
@@ -2198,9 +2222,9 @@ bool can_change_pte_writable(struct vm_area_struct *vma, unsigned long addr,
 extern long change_protection(struct mmu_gather *tlb,
 			      struct vm_area_struct *vma, unsigned long start,
 			      unsigned long end, unsigned long cp_flags);
-extern int mprotect_fixup(struct mmu_gather *tlb, struct vm_area_struct *vma,
-			  struct vm_area_struct **pprev, unsigned long start,
-			  unsigned long end, unsigned long newflags);
+extern int mprotect_fixup(struct vma_iterator *vmi, struct mmu_gather *tlb,
+	  struct vm_area_struct *vma, struct vm_area_struct **pprev,
+	  unsigned long start, unsigned long end, unsigned long newflags);
 
 /*
  * doesn't attempt to fault and will return short.
@@ -2832,32 +2856,27 @@ void anon_vma_interval_tree_verify(struct anon_vma_chain *node);
 
 /* mmap.c */
 extern int __vm_enough_memory(struct mm_struct *mm, long pages, int cap_sys_admin);
-extern int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
-	unsigned long end, pgoff_t pgoff, struct vm_area_struct *insert,
-	struct vm_area_struct *expand);
-static inline int vma_adjust(struct vm_area_struct *vma, unsigned long start,
-	unsigned long end, pgoff_t pgoff, struct vm_area_struct *insert)
-{
-	return __vma_adjust(vma, start, end, pgoff, insert, NULL);
-}
-extern struct vm_area_struct *vma_merge(struct mm_struct *,
-	struct vm_area_struct *prev, unsigned long addr, unsigned long end,
-	unsigned long vm_flags, struct anon_vma *, struct file *, pgoff_t,
-	struct mempolicy *, struct vm_userfaultfd_ctx, struct anon_vma_name *);
+extern int vma_expand(struct vma_iterator *vmi, struct vm_area_struct *vma,
+		      unsigned long start, unsigned long end, pgoff_t pgoff,
+		      struct vm_area_struct *next);
+extern int vma_shrink(struct vma_iterator *vmi, struct vm_area_struct *vma,
+		       unsigned long start, unsigned long end, pgoff_t pgoff);
+extern struct vm_area_struct *vma_merge(struct vma_iterator *vmi,
+	struct mm_struct *, struct vm_area_struct *prev, unsigned long addr,
+	unsigned long end, unsigned long vm_flags, struct anon_vma *,
+	struct file *, pgoff_t, struct mempolicy *, struct vm_userfaultfd_ctx,
+	struct anon_vma_name *);
 extern struct anon_vma *find_mergeable_anon_vma(struct vm_area_struct *);
-extern int __split_vma(struct mm_struct *, struct vm_area_struct *,
-	unsigned long addr, int new_below);
-extern int split_vma(struct mm_struct *, struct vm_area_struct *,
-	unsigned long addr, int new_below);
+extern int __split_vma(struct vma_iterator *vmi, struct vm_area_struct *,
+		       unsigned long addr, int new_below);
+extern int split_vma(struct vma_iterator *vmi, struct vm_area_struct *,
+			 unsigned long addr, int new_below);
 extern int insert_vm_struct(struct mm_struct *, struct vm_area_struct *);
 extern void unlink_file_vma(struct vm_area_struct *);
 extern struct vm_area_struct *copy_vma(struct vm_area_struct **,
 	unsigned long addr, unsigned long len, pgoff_t pgoff,
 	bool *need_rmap_locks);
 extern void exit_mmap(struct mm_struct *);
-
-void vma_mas_store(struct vm_area_struct *vma, struct ma_state *mas);
-void vma_mas_remove(struct vm_area_struct *vma, struct ma_state *mas);
 
 static inline int check_data_rlimit(unsigned long rlim,
 				    unsigned long new,
@@ -2906,7 +2925,7 @@ extern unsigned long mmap_region(struct file *file, unsigned long addr,
 extern unsigned long do_mmap(struct file *file, unsigned long addr,
 	unsigned long len, unsigned long prot, unsigned long flags,
 	unsigned long pgoff, unsigned long *populate, struct list_head *uf);
-extern int do_mas_munmap(struct ma_state *mas, struct mm_struct *mm,
+extern int do_vmi_munmap(struct vma_iterator *vmi, struct mm_struct *mm,
 			 unsigned long start, size_t len, struct list_head *uf,
 			 bool downgrade);
 extern int do_munmap(struct mm_struct *, unsigned long, size_t,
@@ -3493,6 +3512,11 @@ enum mf_action_page_type {
 	MF_MSG_UNSPLIT_THP,
 	MF_MSG_UNKNOWN,
 };
+
+/*
+ * Sysfs entries for memory failure handling statistics.
+ */
+extern const struct attribute_group memory_failure_attr_group;
 
 #if defined(CONFIG_TRANSPARENT_HUGEPAGE) || defined(CONFIG_HUGETLBFS)
 extern void clear_huge_page(struct page *page,

@@ -601,7 +601,7 @@ static int queue_pages_hugetlb(pte_t *pte, unsigned long hmask,
 	/* With MPOL_MF_MOVE, we migrate only unshared hugepage. */
 	if (flags & (MPOL_MF_MOVE_ALL) ||
 	    (flags & MPOL_MF_MOVE && page_mapcount(page) == 1)) {
-		if (isolate_hugetlb(page, qp->pagelist) &&
+		if (isolate_hugetlb(page_folio(page), qp->pagelist) &&
 			(flags & MPOL_MF_STRICT))
 			/*
 			 * Failed to isolate page but allow migrating pages
@@ -786,24 +786,21 @@ static int vma_replace_policy(struct vm_area_struct *vma,
 static int mbind_range(struct mm_struct *mm, unsigned long start,
 		       unsigned long end, struct mempolicy *new_pol)
 {
-	MA_STATE(mas, &mm->mm_mt, start, start);
+	VMA_ITERATOR(vmi, mm, start);
 	struct vm_area_struct *prev;
 	struct vm_area_struct *vma;
 	int err = 0;
 	pgoff_t pgoff;
 
-	prev = mas_prev(&mas, 0);
-	if (unlikely(!prev))
-		mas_set(&mas, start);
-
-	vma = mas_find(&mas, end - 1);
+	prev = vma_prev(&vmi);
+	vma = vma_find(&vmi, end);
 	if (WARN_ON(!vma))
 		return 0;
 
 	if (start > vma->vm_start)
 		prev = vma;
 
-	for (; vma; vma = mas_next(&mas, end - 1)) {
+	do {
 		unsigned long vmstart = max(start, vma->vm_start);
 		unsigned long vmend = min(end, vma->vm_end);
 
@@ -812,29 +809,23 @@ static int mbind_range(struct mm_struct *mm, unsigned long start,
 
 		pgoff = vma->vm_pgoff +
 			((vmstart - vma->vm_start) >> PAGE_SHIFT);
-		prev = vma_merge(mm, prev, vmstart, vmend, vma->vm_flags,
+		prev = vma_merge(&vmi, mm, prev, vmstart, vmend, vma->vm_flags,
 				 vma->anon_vma, vma->vm_file, pgoff,
 				 new_pol, vma->vm_userfaultfd_ctx,
 				 anon_vma_name(vma));
 		if (prev) {
-			/* vma_merge() invalidated the mas */
-			mas_pause(&mas);
 			vma = prev;
 			goto replace;
 		}
 		if (vma->vm_start != vmstart) {
-			err = split_vma(vma->vm_mm, vma, vmstart, 1);
+			err = split_vma(&vmi, vma, vmstart, 1);
 			if (err)
 				goto out;
-			/* split_vma() invalidated the mas */
-			mas_pause(&mas);
 		}
 		if (vma->vm_end != vmend) {
-			err = split_vma(vma->vm_mm, vma, vmend, 0);
+			err = split_vma(&vmi, vma, vmend, 0);
 			if (err)
 				goto out;
-			/* split_vma() invalidated the mas */
-			mas_pause(&mas);
 		}
 replace:
 		err = vma_replace_policy(vma, new_pol);
@@ -842,7 +833,7 @@ replace:
 			goto out;
 next:
 		prev = vma;
-	}
+	} for_each_vma_range(vmi, vma, end);
 
 out:
 	return err;
@@ -1218,9 +1209,11 @@ static struct page *new_page(struct page *page, unsigned long start)
 			break;
 	}
 
-	if (folio_test_hugetlb(src))
-		return alloc_huge_page_vma(page_hstate(&src->page),
+	if (folio_test_hugetlb(src)) {
+		dst = alloc_hugetlb_folio_vma(folio_hstate(src),
 				vma, address);
+		return &dst->page;
+	}
 
 	if (folio_test_large(src))
 		gfp = GFP_TRANSHUGE;
