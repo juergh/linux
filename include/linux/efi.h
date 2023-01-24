@@ -732,6 +732,7 @@ extern u64 efi_mem_attribute (unsigned long phys_addr, unsigned long size);
 extern int __init efi_uart_console_only (void);
 extern u64 efi_mem_desc_end(efi_memory_desc_t *md);
 extern int efi_mem_desc_lookup(u64 phys_addr, efi_memory_desc_t *out_md);
+extern int __efi_mem_desc_lookup(u64 phys_addr, efi_memory_desc_t *out_md);
 extern void efi_mem_reserve(phys_addr_t addr, u64 size);
 extern int efi_mem_reserve_persistent(phys_addr_t addr, u64 size);
 extern void efi_initialize_iomem_resources(struct resource *code_resource,
@@ -1040,7 +1041,6 @@ struct efivar_operations {
 
 struct efivars {
 	struct kset *kset;
-	struct kobject *kobject;
 	const struct efivar_operations *ops;
 };
 
@@ -1054,12 +1054,16 @@ struct efivars {
 #define EFI_VAR_NAME_LEN	1024
 
 int efivars_register(struct efivars *efivars,
-		     const struct efivar_operations *ops,
-		     struct kobject *kobject);
+		     const struct efivar_operations *ops);
 int efivars_unregister(struct efivars *efivars);
-struct kobject *efivars_kobject(void);
 
-int efivar_supports_writes(void);
+#ifdef CONFIG_EFI
+bool efivar_is_available(void);
+#else
+static inline bool efivar_is_available(void) { return false; }
+#endif
+
+bool efivar_supports_writes(void);
 
 int efivar_lock(void);
 int efivar_trylock(void);
@@ -1318,5 +1322,15 @@ struct linux_efi_initrd {
 
 /* Header of a populated EFI secret area */
 #define EFI_SECRET_TABLE_HEADER_GUID	EFI_GUID(0x1e74f542, 0x71dd, 0x4d66,  0x96, 0x3e, 0xef, 0x42, 0x87, 0xff, 0x17, 0x3b)
+
+bool xen_efi_config_table_is_usable(const efi_guid_t *guid, unsigned long table);
+
+static inline
+bool efi_config_table_is_usable(const efi_guid_t *guid, unsigned long table)
+{
+	if (!IS_ENABLED(CONFIG_XEN_EFI))
+		return true;
+	return xen_efi_config_table_is_usable(guid, table);
+}
 
 #endif /* _LINUX_EFI_H */
