@@ -1766,6 +1766,8 @@ unlock:
  *   there is an intermediary node C, which is < N hops away from both
  *   nodes A and B, the system is a glueless mesh.
  */
+#include <linux/bsearch.h>
+
 static void init_numa_topology_type(int offline_node)
 {
 	int a, b, c, n;

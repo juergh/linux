@@ -7,6 +7,7 @@
 #endif
 
 #include <linux/bitops.h>
+#include <linux/math.h>
 
 unsigned long _find_next_bit(const unsigned long *addr1, unsigned long nbits,
 				unsigned long start);
@@ -48,18 +49,15 @@ unsigned long _find_next_bit_le(const unsigned long *addr, unsigned
  * Returns the bit number for the next set bit
  * If no bits are set, returns @size.
  */
-static inline
+static __always_inline
 unsigned long find_next_bit(const unsigned long *addr, unsigned long size,
 			    unsigned long offset)
 {
-	if (small_const_nbits(size)) {
-		unsigned long val;
+	if (small_const_nbits_off(size, offset)) {
+		unsigned long val = addr[offset/BITS_PER_LONG] &
+				    GENMASK((size - 1) % BITS_PER_LONG, offset % BITS_PER_LONG);
 
-		if (unlikely(offset >= size))
-			return size;
-
-		val = *addr & GENMASK(size - 1, offset);
-		return val ? __ffs(val) : size;
+		return val ? round_down(offset, BITS_PER_LONG) + __ffs(val) : size;
 	}
 
 	return _find_next_bit(addr, size, offset);
@@ -77,19 +75,16 @@ unsigned long find_next_bit(const unsigned long *addr, unsigned long size,
  * Returns the bit number for the next set bit
  * If no bits are set, returns @size.
  */
-static inline
+static __always_inline
 unsigned long find_next_and_bit(const unsigned long *addr1,
 		const unsigned long *addr2, unsigned long size,
 		unsigned long offset)
 {
-	if (small_const_nbits(size)) {
-		unsigned long val;
+	if (small_const_nbits_off(size, offset)) {
+		unsigned long val = addr1[offset/BITS_PER_LONG] & addr2[offset/BITS_PER_LONG] &
+				    GENMASK((size - 1) % BITS_PER_LONG, offset % BITS_PER_LONG);
 
-		if (unlikely(offset >= size))
-			return size;
-
-		val = *addr1 & *addr2 & GENMASK(size - 1, offset);
-		return val ? __ffs(val) : size;
+		return val ? round_down(offset, BITS_PER_LONG) + __ffs(val) : size;
 	}
 
 	return _find_next_and_bit(addr1, addr2, size, offset);
@@ -108,19 +103,16 @@ unsigned long find_next_and_bit(const unsigned long *addr1,
  * Returns the bit number for the next set bit
  * If no bits are set, returns @size.
  */
-static inline
+static __always_inline
 unsigned long find_next_andnot_bit(const unsigned long *addr1,
 		const unsigned long *addr2, unsigned long size,
 		unsigned long offset)
 {
-	if (small_const_nbits(size)) {
-		unsigned long val;
+	if (small_const_nbits_off(size, offset)) {
+		unsigned long val = addr1[offset/BITS_PER_LONG] & ~addr2[offset/BITS_PER_LONG] &
+				    GENMASK((size - 1) % BITS_PER_LONG, offset % BITS_PER_LONG);
 
-		if (unlikely(offset >= size))
-			return size;
-
-		val = *addr1 & ~*addr2 & GENMASK(size - 1, offset);
-		return val ? __ffs(val) : size;
+		return val ? round_down(offset, BITS_PER_LONG) + __ffs(val) : size;
 	}
 
 	return _find_next_andnot_bit(addr1, addr2, size, offset);
@@ -137,18 +129,15 @@ unsigned long find_next_andnot_bit(const unsigned long *addr1,
  * Returns the bit number of the next zero bit
  * If no bits are zero, returns @size.
  */
-static inline
+static __always_inline
 unsigned long find_next_zero_bit(const unsigned long *addr, unsigned long size,
 				 unsigned long offset)
 {
-	if (small_const_nbits(size)) {
-		unsigned long val;
+	if (small_const_nbits_off(size, offset)) {
+		unsigned long val = addr[offset/BITS_PER_LONG] |
+				    ~GENMASK((size - 1) % BITS_PER_LONG, offset % BITS_PER_LONG);
 
-		if (unlikely(offset >= size))
-			return size;
-
-		val = *addr | ~GENMASK(size - 1, offset);
-		return val == ~0UL ? size : ffz(val);
+		return val == ~0UL ? size : round_down(offset, BITS_PER_LONG) + ffz(val);
 	}
 
 	return _find_next_zero_bit(addr, size, offset);
@@ -164,7 +153,7 @@ unsigned long find_next_zero_bit(const unsigned long *addr, unsigned long size,
  * Returns the bit number of the first set bit.
  * If no bits are set, returns @size.
  */
-static inline
+static __always_inline
 unsigned long find_first_bit(const unsigned long *addr, unsigned long size)
 {
 	if (small_const_nbits(size)) {
@@ -190,7 +179,7 @@ unsigned long find_first_bit(const unsigned long *addr, unsigned long size)
  * Returns the bit number of the N'th set bit.
  * If no such, returns @size.
  */
-static inline
+static __always_inline
 unsigned long find_nth_bit(const unsigned long *addr, unsigned long size, unsigned long n)
 {
 	if (n >= size)
@@ -215,7 +204,7 @@ unsigned long find_nth_bit(const unsigned long *addr, unsigned long size, unsign
  * Returns the bit number of the N'th set bit.
  * If no such, returns @size.
  */
-static inline
+static __always_inline
 unsigned long find_nth_and_bit(const unsigned long *addr1, const unsigned long *addr2,
 				unsigned long size, unsigned long n)
 {
@@ -242,7 +231,7 @@ unsigned long find_nth_and_bit(const unsigned long *addr1, const unsigned long *
  * Returns the bit number of the N'th set bit.
  * If no such, returns @size.
  */
-static inline
+static __always_inline
 unsigned long find_nth_andnot_bit(const unsigned long *addr1, const unsigned long *addr2,
 				unsigned long size, unsigned long n)
 {
@@ -298,7 +287,7 @@ unsigned long find_nth_and_andnot_bit(const unsigned long *addr1,
  * Returns the bit number for the next set bit
  * If no bits are set, returns @size.
  */
-static inline
+static __always_inline
 unsigned long find_first_and_bit(const unsigned long *addr1,
 				 const unsigned long *addr2,
 				 unsigned long size)
@@ -322,7 +311,7 @@ unsigned long find_first_and_bit(const unsigned long *addr1,
  * Returns the bit number of the first cleared bit.
  * If no bits are zero, returns @size.
  */
-static inline
+static __always_inline
 unsigned long find_first_zero_bit(const unsigned long *addr, unsigned long size)
 {
 	if (small_const_nbits(size)) {
@@ -343,7 +332,7 @@ unsigned long find_first_zero_bit(const unsigned long *addr, unsigned long size)
  *
  * Returns the bit number of the last set bit, or size.
  */
-static inline
+static __always_inline
 unsigned long find_last_bit(const unsigned long *addr, unsigned long size)
 {
 	if (small_const_nbits(size)) {
@@ -366,7 +355,7 @@ unsigned long find_last_bit(const unsigned long *addr, unsigned long size)
  * Returns the bit number for the next set bit, or first set bit up to @offset
  * If no bits are set, returns @size.
  */
-static inline
+static __always_inline
 unsigned long find_next_and_bit_wrap(const unsigned long *addr1,
 					const unsigned long *addr2,
 					unsigned long size, unsigned long offset)
@@ -389,7 +378,7 @@ unsigned long find_next_and_bit_wrap(const unsigned long *addr1,
  * Returns the bit number for the next set bit, or first set bit up to @offset
  * If no bits are set, returns @size.
  */
-static inline
+static __always_inline
 unsigned long find_next_bit_wrap(const unsigned long *addr,
 					unsigned long size, unsigned long offset)
 {
@@ -406,7 +395,7 @@ unsigned long find_next_bit_wrap(const unsigned long *addr,
  * Helper for for_each_set_bit_wrap(). Make sure you're doing right thing
  * before using it alone.
  */
-static inline
+static __always_inline
 unsigned long __for_each_wrap(const unsigned long *bitmap, unsigned long size,
 				 unsigned long start, unsigned long n)
 {
@@ -447,19 +436,19 @@ extern unsigned long find_next_clump8(unsigned long *clump,
 
 #if defined(__LITTLE_ENDIAN)
 
-static inline unsigned long find_next_zero_bit_le(const void *addr,
+static __always_inline unsigned long find_next_zero_bit_le(const void *addr,
 		unsigned long size, unsigned long offset)
 {
 	return find_next_zero_bit(addr, size, offset);
 }
 
-static inline unsigned long find_next_bit_le(const void *addr,
+static __always_inline unsigned long find_next_bit_le(const void *addr,
 		unsigned long size, unsigned long offset)
 {
 	return find_next_bit(addr, size, offset);
 }
 
-static inline unsigned long find_first_zero_bit_le(const void *addr,
+static __always_inline unsigned long find_first_zero_bit_le(const void *addr,
 		unsigned long size)
 {
 	return find_first_zero_bit(addr, size);
@@ -468,7 +457,7 @@ static inline unsigned long find_first_zero_bit_le(const void *addr,
 #elif defined(__BIG_ENDIAN)
 
 #ifndef find_next_zero_bit_le
-static inline
+static __always_inline
 unsigned long find_next_zero_bit_le(const void *addr, unsigned
 		long size, unsigned long offset)
 {
@@ -487,7 +476,7 @@ unsigned long find_next_zero_bit_le(const void *addr, unsigned
 #endif
 
 #ifndef find_first_zero_bit_le
-static inline
+static __always_inline
 unsigned long find_first_zero_bit_le(const void *addr, unsigned long size)
 {
 	if (small_const_nbits(size)) {
@@ -501,7 +490,7 @@ unsigned long find_first_zero_bit_le(const void *addr, unsigned long size)
 #endif
 
 #ifndef find_next_bit_le
-static inline
+static __always_inline
 unsigned long find_next_bit_le(const void *addr, unsigned
 		long size, unsigned long offset)
 {
