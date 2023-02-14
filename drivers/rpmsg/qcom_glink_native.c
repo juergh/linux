@@ -11,7 +11,6 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
-#include <linux/of_irq.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/rpmsg.h>
@@ -78,11 +77,8 @@ struct glink_core_rx_intent {
 /**
  * struct qcom_glink - driver context, relates to one remote subsystem
  * @dev:	reference to the associated struct device
- * @mbox_client: mailbox client
- * @mbox_chan:  mailbox channel
  * @rx_pipe:	pipe object for receive FIFO
  * @tx_pipe:	pipe object for transmit FIFO
- * @irq:	IRQ for signaling incoming events
  * @rx_work:	worker for handling received control messages
  * @rx_lock:	protects the @rx_queue
  * @rx_queue:	queue of received control messages to be processed in @rx_work
@@ -94,17 +90,13 @@ struct glink_core_rx_intent {
  * @intentless:	flag to indicate that there is no intent
  * @tx_avail_notify: Waitqueue for pending tx tasks
  * @sent_read_notify: flag to check cmd sent or not
+ * @abort_tx:	flag indicating that all tx attempts should fail
  */
 struct qcom_glink {
 	struct device *dev;
 
-	struct mbox_client mbox_client;
-	struct mbox_chan *mbox_chan;
-
 	struct qcom_glink_pipe *rx_pipe;
 	struct qcom_glink_pipe *tx_pipe;
-
-	int irq;
 
 	struct work_struct rx_work;
 	spinlock_t rx_lock;
@@ -120,6 +112,8 @@ struct qcom_glink {
 	bool intentless;
 	wait_queue_head_t tx_avail_notify;
 	bool sent_read_notify;
+
+	bool abort_tx;
 };
 
 enum {
@@ -303,6 +297,11 @@ static void qcom_glink_tx_write(struct qcom_glink *glink,
 	glink->tx_pipe->write(glink->tx_pipe, hdr, hlen, data, dlen);
 }
 
+static void qcom_glink_tx_kick(struct qcom_glink *glink)
+{
+	glink->tx_pipe->kick(glink->tx_pipe);
+}
+
 static void qcom_glink_send_read_notify(struct qcom_glink *glink)
 {
 	struct glink_msg msg;
@@ -313,8 +312,7 @@ static void qcom_glink_send_read_notify(struct qcom_glink *glink)
 
 	qcom_glink_tx_write(glink, &msg, sizeof(msg), NULL, 0);
 
-	mbox_send_message(glink->mbox_chan, NULL);
-	mbox_client_txdone(glink->mbox_chan, 0);
+	qcom_glink_tx_kick(glink);
 }
 
 static int qcom_glink_tx(struct qcom_glink *glink,
@@ -331,9 +329,19 @@ static int qcom_glink_tx(struct qcom_glink *glink,
 
 	spin_lock_irqsave(&glink->tx_lock, flags);
 
+	if (glink->abort_tx) {
+		ret = -EIO;
+		goto out;
+	}
+
 	while (qcom_glink_tx_avail(glink) < tlen) {
 		if (!wait) {
 			ret = -EAGAIN;
+			goto out;
+		}
+
+		if (glink->abort_tx) {
+			ret = -EIO;
 			goto out;
 		}
 
@@ -355,9 +363,7 @@ static int qcom_glink_tx(struct qcom_glink *glink,
 	}
 
 	qcom_glink_tx_write(glink, hdr, hlen, data, dlen);
-
-	mbox_send_message(glink->mbox_chan, NULL);
-	mbox_client_txdone(glink->mbox_chan, 0);
+	qcom_glink_tx_kick(glink);
 
 out:
 	spin_unlock_irqrestore(&glink->tx_lock, flags);
@@ -414,6 +420,12 @@ static void qcom_glink_handle_intent_req_ack(struct qcom_glink *glink,
 	}
 
 	channel->intent_req_result = granted;
+	complete(&channel->intent_req_comp);
+}
+
+static void qcom_glink_intent_req_abort(struct glink_channel *channel)
+{
+	channel->intent_req_result = 0;
 	complete(&channel->intent_req_comp);
 }
 
@@ -1001,9 +1013,8 @@ static int qcom_glink_rx_open_ack(struct qcom_glink *glink, unsigned int lcid)
 	return 0;
 }
 
-static irqreturn_t qcom_glink_native_intr(int irq, void *data)
+void qcom_glink_native_rx(struct qcom_glink *glink)
 {
-	struct qcom_glink *glink = data;
 	struct glink_msg msg;
 	unsigned int param1;
 	unsigned int param2;
@@ -1046,9 +1057,7 @@ static irqreturn_t qcom_glink_native_intr(int irq, void *data)
 			break;
 		case RPM_CMD_READ_NOTIF:
 			qcom_glink_rx_advance(glink, ALIGN(sizeof(msg), 8));
-
-			mbox_send_message(glink->mbox_chan, NULL);
-			mbox_client_txdone(glink->mbox_chan, 0);
+			qcom_glink_tx_kick(glink);
 			break;
 		case RPM_CMD_INTENT:
 			qcom_glink_handle_intent(glink, param1, param2, avail);
@@ -1074,9 +1083,8 @@ static irqreturn_t qcom_glink_native_intr(int irq, void *data)
 		if (ret)
 			break;
 	}
-
-	return IRQ_HANDLED;
 }
+EXPORT_SYMBOL(qcom_glink_native_rx);
 
 /* Locally initiated rpmsg_create_ept */
 static struct glink_channel *qcom_glink_create_local(struct qcom_glink *glink,
@@ -1722,7 +1730,6 @@ struct qcom_glink *qcom_glink_native_probe(struct device *dev,
 					   struct qcom_glink_pipe *tx,
 					   bool intentless)
 {
-	int irq;
 	int ret;
 	struct qcom_glink *glink;
 
@@ -1753,27 +1760,6 @@ struct qcom_glink *qcom_glink_native_probe(struct device *dev,
 	if (ret)
 		dev_err(dev, "failed to add groups\n");
 
-	glink->mbox_client.dev = dev;
-	glink->mbox_client.knows_txdone = true;
-	glink->mbox_chan = mbox_request_channel(&glink->mbox_client, 0);
-	if (IS_ERR(glink->mbox_chan)) {
-		if (PTR_ERR(glink->mbox_chan) != -EPROBE_DEFER)
-			dev_err(dev, "failed to acquire IPC channel\n");
-		return ERR_CAST(glink->mbox_chan);
-	}
-
-	irq = of_irq_get(dev->of_node, 0);
-	ret = devm_request_irq(dev, irq,
-			       qcom_glink_native_intr,
-			       IRQF_NO_SUSPEND | IRQF_SHARED,
-			       "glink-native", glink);
-	if (ret) {
-		dev_err(dev, "failed to request IRQ\n");
-		return ERR_PTR(ret);
-	}
-
-	glink->irq = irq;
-
 	ret = qcom_glink_send_version(glink);
 	if (ret)
 		return ERR_PTR(ret);
@@ -1796,11 +1782,23 @@ static int qcom_glink_remove_device(struct device *dev, void *data)
 void qcom_glink_native_remove(struct qcom_glink *glink)
 {
 	struct glink_channel *channel;
+	unsigned long flags;
 	int cid;
 	int ret;
 
-	disable_irq(glink->irq);
 	qcom_glink_cancel_rx_work(glink);
+
+	/* Fail all attempts at sending messages */
+	spin_lock_irqsave(&glink->tx_lock, flags);
+	glink->abort_tx = true;
+	wake_up_all(&glink->tx_avail_notify);
+	spin_unlock_irqrestore(&glink->tx_lock, flags);
+
+	/* Abort any senders waiting for intent requests */
+	spin_lock_irqsave(&glink->idr_lock, flags);
+	idr_for_each_entry(&glink->lcids, channel, cid)
+		qcom_glink_intent_req_abort(channel);
+	spin_unlock_irqrestore(&glink->idr_lock, flags);
 
 	ret = device_for_each_child(glink->dev, NULL, qcom_glink_remove_device);
 	if (ret)
@@ -1816,15 +1814,8 @@ void qcom_glink_native_remove(struct qcom_glink *glink)
 
 	idr_destroy(&glink->lcids);
 	idr_destroy(&glink->rcids);
-	mbox_free_channel(glink->mbox_chan);
 }
 EXPORT_SYMBOL_GPL(qcom_glink_native_remove);
-
-void qcom_glink_native_unregister(struct qcom_glink *glink)
-{
-	device_unregister(glink->dev);
-}
-EXPORT_SYMBOL_GPL(qcom_glink_native_unregister);
 
 MODULE_DESCRIPTION("Qualcomm GLINK driver");
 MODULE_LICENSE("GPL v2");
