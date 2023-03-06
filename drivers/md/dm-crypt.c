@@ -239,6 +239,7 @@ static void crypt_endio(struct bio *clone);
 static void kcryptd_queue_crypt(struct dm_crypt_io *io);
 static struct scatterlist *crypt_get_sg_data(struct crypt_config *cc,
 					     struct scatterlist *sg);
+static void kcryptd_crypt_tasklet(unsigned long work);
 
 static bool crypt_integrity_aead(struct crypt_config *cc);
 
@@ -1729,6 +1730,12 @@ static void crypt_io_init(struct dm_crypt_io *io, struct crypt_config *cc,
 	io->sector = sector;
 	io->error = 0;
 	io->ctx.r.req = NULL;
+	/*
+	 * tasklet_init() here to ensure crypt_dec_pending()'s
+	 * tasklet_trylock() doesn't incorrectly return false
+	 * even when tasklet isn't in use.
+	 */
+	tasklet_init(&io->tasklet, kcryptd_crypt_tasklet, (unsigned long)&io->work);
 	io->integrity_metadata = NULL;
 	io->integrity_metadata_from_pool = false;
 	atomic_set(&io->io_pending, 0);
@@ -2233,7 +2240,6 @@ static void kcryptd_queue_crypt(struct dm_crypt_io *io)
 		 * it is being executed with irqs disabled.
 		 */
 		if (in_hardirq() || irqs_disabled()) {
-			tasklet_init(&io->tasklet, kcryptd_crypt_tasklet, (unsigned long)&io->work);
 			tasklet_schedule(&io->tasklet);
 			return;
 		}
