@@ -883,7 +883,7 @@ static int refresh_cpu_vm_stats(void)
 }
 
 /*
- * Fold the data for a cpu into the global array.
+ * Fold the data for an offline cpu into the global array.
  * There cannot be any access by the offline cpu and therefore
  * synchronization is simplified.
  */
@@ -904,7 +904,8 @@ void cpu_vm_stats_fold(int cpu)
 			if (pzstats->vm_stat_diff[i]) {
 				int v;
 
-				v = xchg(&pzstats->vm_stat_diff[i], 0);
+				v = pzstats->vm_stat_diff[i];
+				pzstats->vm_stat_diff[i] = 0;
 				atomic_long_add(v, &zone->vm_stat[i]);
 				global_zone_diff[i] += v;
 			}
@@ -914,7 +915,8 @@ void cpu_vm_stats_fold(int cpu)
 			if (pzstats->vm_numa_event[i]) {
 				unsigned long v;
 
-				v = xchg(&pzstats->vm_numa_event[i], 0);
+				v = pzstats->vm_numa_event[i];
+				pzstats->vm_numa_event[i] = 0;
 				zone_numa_event_add(v, zone, i);
 			}
 		}
@@ -930,7 +932,8 @@ void cpu_vm_stats_fold(int cpu)
 			if (p->vm_node_stat_diff[i]) {
 				int v;
 
-				v = xchg(&p->vm_node_stat_diff[i], 0);
+				v = p->vm_node_stat_diff[i];
+				p->vm_node_stat_diff[i] = 0;
 				atomic_long_add(v, &pgdat->vm_stat[i]);
 				global_node_diff[i] += v;
 			}
