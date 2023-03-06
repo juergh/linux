@@ -40,6 +40,7 @@
 #include <keys/user-type.h>
 #include <keys/encrypted-type.h>
 #include <keys/trusted-type.h>
+#include <linux/jump_label.h>
 
 #include <linux/device-mapper.h>
 
@@ -84,6 +85,8 @@ struct dm_crypt_io {
 
 	struct rb_node rb_node;
 } CRYPTO_MINALIGN_ATTR;
+
+static DEFINE_STATIC_KEY_FALSE(use_tasklet_enabled);
 
 struct dm_crypt_request {
 	struct convert_context *ctx;
@@ -1730,12 +1733,15 @@ static void crypt_io_init(struct dm_crypt_io *io, struct crypt_config *cc,
 	io->sector = sector;
 	io->error = 0;
 	io->ctx.r.req = NULL;
-	/*
-	 * tasklet_init() here to ensure crypt_dec_pending()'s
-	 * tasklet_trylock() doesn't incorrectly return false
-	 * even when tasklet isn't in use.
-	 */
-	tasklet_init(&io->tasklet, kcryptd_crypt_tasklet, (unsigned long)&io->work);
+	if (static_branch_unlikely(&use_tasklet_enabled)) {
+		/*
+		 * tasklet_init() here to ensure crypt_dec_pending()'s
+		 * tasklet_trylock() doesn't incorrectly return false
+		 * even when tasklet isn't in use.
+		 */
+		tasklet_init(&io->tasklet, kcryptd_crypt_tasklet,
+			     (unsigned long)&io->work);
+	}
 	io->integrity_metadata = NULL;
 	io->integrity_metadata_from_pool = false;
 	atomic_set(&io->io_pending, 0);
@@ -1775,6 +1781,10 @@ static void crypt_dec_pending(struct dm_crypt_io *io)
 		kfree(io->integrity_metadata);
 
 	base_bio->bi_status = error;
+	if (!static_branch_unlikely(&use_tasklet_enabled)) {
+		bio_endio(base_bio);
+		return;
+	}
 
 	/*
 	 * If we are running this function from our tasklet,
@@ -2232,8 +2242,9 @@ static void kcryptd_queue_crypt(struct dm_crypt_io *io)
 {
 	struct crypt_config *cc = io->cc;
 
-	if ((bio_data_dir(io->base_bio) == READ && test_bit(DM_CRYPT_NO_READ_WORKQUEUE, &cc->flags)) ||
-	    (bio_data_dir(io->base_bio) == WRITE && test_bit(DM_CRYPT_NO_WRITE_WORKQUEUE, &cc->flags))) {
+	if (static_branch_unlikely(&use_tasklet_enabled) &&
+	    ((bio_data_dir(io->base_bio) == READ && test_bit(DM_CRYPT_NO_READ_WORKQUEUE, &cc->flags)) ||
+	     (bio_data_dir(io->base_bio) == WRITE && test_bit(DM_CRYPT_NO_WRITE_WORKQUEUE, &cc->flags)))) {
 		/*
 		 * in_hardirq(): Crypto API's skcipher_walk_first() refuses to work in hard IRQ context.
 		 * irqs_disabled(): the kernel may run some IO completion from the idle thread, but
@@ -2745,6 +2756,10 @@ static void crypt_dtr(struct dm_target *ti)
 	dm_crypt_clients_n--;
 	crypt_calculate_pages_per_client();
 	spin_unlock(&dm_crypt_clients_lock);
+
+	if (test_bit(DM_CRYPT_NO_READ_WORKQUEUE, &cc->flags) ||
+	    test_bit(DM_CRYPT_NO_WRITE_WORKQUEUE, &cc->flags))
+		static_branch_dec(&use_tasklet_enabled);
 
 	dm_audit_log_dtr(DM_MSG_PREFIX, ti, 1);
 }
@@ -3374,6 +3389,10 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	ti->num_flush_bios = 1;
 	ti->limit_swap_bios = true;
 	ti->accounts_remapped_io = true;
+
+	if (test_bit(DM_CRYPT_NO_READ_WORKQUEUE, &cc->flags) ||
+	    test_bit(DM_CRYPT_NO_WRITE_WORKQUEUE, &cc->flags))
+		static_branch_inc(&use_tasklet_enabled);
 
 	dm_audit_log_ctr(DM_MSG_PREFIX, ti, 1);
 	return 0;
