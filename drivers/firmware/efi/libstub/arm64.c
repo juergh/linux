@@ -36,7 +36,7 @@ static bool system_needs_vamap(void)
 	default:
 		version = efi_get_smbios_string(&record->header, 4,
 						processor_version);
-		if (!version || strcmp(version, "eMAG"))
+		if (!version || strncmp(version, "eMAG", 4))
 			break;
 
 		fallthrough;
